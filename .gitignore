@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+server/node_modules/
+client/node_modules/
+
+# Environment variables — never commit these
+.env
+.env.local
+
+# React build output
+client/dist/
+
+# Docker local volume data
+mongo-data/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# VS Code settings
+.vscode/
