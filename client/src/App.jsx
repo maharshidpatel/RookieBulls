@@ -32,15 +32,14 @@
 
 import { Routes, Route, Navigate } from 'react-router-dom';
 import RegisterPage from './pages/RegisterPage';
+import LoginPage from './pages/LoginPage';
 
 export default function App() {
   return (
     <Routes>
-      {/* Redirect root URL to register for now */}
       <Route path="/" element={<Navigate to="/register" replace />} />
       <Route path="/register" element={<RegisterPage />} />
-
-      {/* Login page added in 2.9 */}
+      <Route path="/login" element={<LoginPage />} />
     </Routes>
   );
 }
