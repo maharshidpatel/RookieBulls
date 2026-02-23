@@ -45,7 +45,7 @@ if (missing.length > 0) {
   process.exit(1)
 }
 
-module.exports = {
+const env = {
   PORT: process.env.PORT,
   NODE_ENV: process.env.NODE_ENV,
   MONGO_URI: process.env.MONGO_URI,
@@ -53,5 +53,7 @@ module.exports = {
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET,
   JWT_ACCESS_EXPIRY: process.env.JWT_ACCESS_EXPIRY,
   JWT_REFRESH_EXPIRY: process.env.JWT_REFRESH_EXPIRY,
-  CLIENT_ORIGIN: process.env.CLIENT_ORIGIN
-}
+  CLIENT_ORIGIN: process.env.CLIENT_ORIGIN,
+};
+
+module.exports = { env };

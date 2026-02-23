@@ -59,7 +59,7 @@ Response sent
 
 // Must be first — loads and validates all environment variables
 // before anything else in the application runs
-const env = require('./config/env')
+const { env } = require('./config/env')
 
 const express = require('express')
 const cors = require('cors')
