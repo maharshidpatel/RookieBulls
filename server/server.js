@@ -89,11 +89,11 @@ app.use(morgan('dev'))
 app.use(express.json())
 
 // ─── Routes ───────────────────────────────────────────────────
-// Module routes are mounted here as they are built
-// Each module gets its own URL prefix
-// Example when auth module is ready:
-//   const authRoutes = require('./modules/auth/routes')
-//   app.use('/api/auth', authRoutes)
+// Each module is mounted under its own /api prefix.
+// Routes defined inside the module are relative to this prefix.
+// Example: a route defined as /register becomes /api/auth/register
+const authRoutes = require('./modules/auth/routes');
+app.use('/api/auth', authRoutes);
 
 // ─── Health Check ─────────────────────────────────────────────
 // A simple endpoint to verify the server is running
@@ -123,7 +123,7 @@ app.use((req, res) => {
 // Express identifies error handlers by the four parameter signature
 app.use((err, req, res, next) => {
   console.error(err.stack)
-  res.status(err.status || 500).json({
+  res.status(err.statusCode || 500).json({
     status: 'error',
     message: env.NODE_ENV === 'production'
       ? 'Something went wrong'
