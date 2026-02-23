@@ -40,6 +40,8 @@ export default function App() {
       <Route path="/" element={<Navigate to="/register" replace />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/login" element={<LoginPage />} />
+      {/* Temporary — replaced with real dashboard in next feature */}
+      <Route path="/dashboard" element={<h1>Dashboard — coming soon</h1>} />
     </Routes>
   );
 }

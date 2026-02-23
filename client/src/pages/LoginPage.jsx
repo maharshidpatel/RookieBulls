@@ -17,14 +17,17 @@
  */
 
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { loginUser } from '../services/auth';
+import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { login } = useAuth();
+  const navigate = useNavigate();
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -38,7 +41,9 @@ export default function LoginPage() {
        * This will be replaced in 2.10 when AuthContext stores the tokens
        * and redirects the user to the dashboard.
        */
-      console.log('Login successful:', result.data);
+      login(result.data.user, result.data.accessToken);
+      navigate('/dashboard');
+    
     } catch (err) {
       const data = err.response?.data;
       setError(data?.message || 'Something went wrong. Please try again.');
