@@ -18,13 +18,29 @@
  * It should stay thin — routing and providers only.
  */
 
-function App() {
-  return (
-    <div>
-      <h1>Rookie Bulls</h1>
-      <p>Frontend is running.</p>
-    </div>
-  )
-}
+/*
+ * FILE: client/src/App.jsx
+ *
+ * RESPONSIBILITY:
+ *   Root component. Defines all client-side routes.
+ *   Maps URL paths to page components.
+ *
+ * HOW IT FITS:
+ *   main.jsx renders this component inside BrowserRouter.
+ *   Every page in the app is registered here.
+ */
 
-export default App
+import { Routes, Route, Navigate } from 'react-router-dom';
+import RegisterPage from './pages/RegisterPage';
+
+export default function App() {
+  return (
+    <Routes>
+      {/* Redirect root URL to register for now */}
+      <Route path="/" element={<Navigate to="/register" replace />} />
+      <Route path="/register" element={<RegisterPage />} />
+
+      {/* Login page added in 2.9 */}
+    </Routes>
+  );
+}
