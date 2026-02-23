@@ -24,6 +24,7 @@
  * RESPONSIBILITY:
  *   Root component. Defines all client-side routes.
  *   Maps URL paths to page components.
+ *   Wraps protected pages in ProtectedRoute.
  *
  * HOW IT FITS:
  *   main.jsx renders this component inside BrowserRouter.
@@ -33,6 +34,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import RegisterPage from './pages/RegisterPage';
 import LoginPage from './pages/LoginPage';
+import ProtectedRoute from './components/ProtectedRoute';
 
 export default function App() {
   return (
@@ -40,8 +42,16 @@ export default function App() {
       <Route path="/" element={<Navigate to="/register" replace />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/login" element={<LoginPage />} />
-      {/* Temporary — replaced with real dashboard in next feature */}
-      <Route path="/dashboard" element={<h1>Dashboard — coming soon</h1>} />
+      
+      {/*
+       * Protected routes — only accessible when logged in.
+       * Unauthenticated users are redirected to /login.
+       */}
+      <Route path="/dashboard" element={
+        <ProtectedRoute>
+          <h1>Dashboard — coming soon</h1>
+        </ProtectedRoute>
+      } />
     </Routes>
   );
 }
