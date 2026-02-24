@@ -13,8 +13,9 @@
  */
 
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { registerUser } from '../services/auth';
+import { useAuth } from '../context/AuthContext';
 
 export default function RegisterPage() {
   /*
@@ -37,12 +38,23 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
+  const { isAuthenticated } = useAuth();
 
   /*
    * useNavigate returns a function that redirects the user to a new route.
    * Called after successful registration to send the user to the login page.
    */
   const navigate = useNavigate();
+
+  /*
+   * If the user is already authenticated, skip the register page entirely.
+   * This handles the case where a logged-in user hits the back button
+   * or navigates directly to /register.
+   */
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   async function handleSubmit(e) {
     /*
