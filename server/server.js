@@ -95,6 +95,9 @@ app.use(express.json())
 const authRoutes = require('./modules/auth/routes');
 app.use('/api/auth', authRoutes);
 
+const walletRoutes = require('./modules/wallet/routes');
+app.use('/api/wallet', walletRoutes);
+
 // ─── Health Check ─────────────────────────────────────────────
 // A simple endpoint to verify the server is running
 // Used by monitoring tools and deployment pipelines

@@ -21,6 +21,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const User = require('./model');
 const { env } = require('../../config/env');
+const { createWallet } = require('../wallet/service');
 
 /*
  * SALT ROUNDS
@@ -75,6 +76,16 @@ async function register(email, password) {
    * User.create() runs schema validation before inserting.
    */
   const user = await User.create({ email, passwordHash });
+
+  /*
+   * Wallet is created immediately after user creation.
+   * Every registered user must have a wallet — no exceptions.
+   * If wallet creation fails, the error propagates up and
+   * the controller returns a 500. The user record will exist
+   * without a wallet in this case, which is an edge case
+   * noted for post-MVP cleanup (transaction/rollback strategy).
+   */
+  await createWallet(user._id);
 
   /*
    * Return a plain object with only the fields the caller needs.
