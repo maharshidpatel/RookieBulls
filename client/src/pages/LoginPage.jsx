@@ -45,7 +45,10 @@ export default function LoginPage() {
        * This will be replaced in 2.10 when AuthContext stores the tokens
        * and redirects the user to the dashboard.
        */
-      login(result.data.user, result.data.accessToken);
+      
+      // Pass all three — user, access token, and refresh token.
+      // AuthContext stores all of them in sessionStorage.
+      login(result.data.user, result.data.accessToken, result.data.refreshToken);
       navigate('/dashboard');
     
     } catch (err) {

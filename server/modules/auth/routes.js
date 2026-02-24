@@ -53,4 +53,10 @@ router.post('/register', ...validateRegister, controller.register);
  */
 router.post('/login', ...validateLogin, controller.login);
 
+// POST /api/auth/refresh
+// Issues a new access token using a valid refresh token.
+// No authentication middleware — the refresh token itself is the credential.
+// Full path: POST /api/auth/refresh
+router.post('/refresh', controller.refresh);
+
 module.exports = router;

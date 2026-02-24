@@ -194,4 +194,65 @@ function generateRefreshToken(user) {
   );
 }
 
-module.exports = { register, login };
+// ─── refresh ──────────────────────────────────────────────────
+// Issues a new access token when the current one has expired.
+// Called by the frontend axios interceptor automatically —
+// the user never triggers this directly.
+//
+// Flow:
+//   1. Validate that a refresh token was provided
+//   2. Verify the token signature and expiry against JWT_REFRESH_SECRET
+//      (refresh tokens are signed with a different secret than access tokens
+//       so they cannot be swapped or cross-verified)
+//   3. Confirm the user still exists in the database
+//      (handles the case where an account was deleted after token was issued)
+//   4. Issue a fresh access token and return it
+//
+// Why not issue a new refresh token here:
+//   Refresh token rotation (issuing a new refresh token on every use) is
+//   a security hardening technique. It is a post-MVP consideration.
+//   For now, the same refresh token is reused until it expires (7 days).
+
+async function refresh(refreshToken) {
+  // Guard: reject immediately if no token was sent in the request body
+  if (!refreshToken) {
+    const err = new Error('Refresh token is required');
+    err.statusCode = 401;
+    throw err;
+  }
+
+  let payload;
+  try {
+    // jwt.verify() does two things simultaneously:
+    //   1. Checks the token signature using JWT_REFRESH_SECRET
+    //   2. Checks that the token has not expired
+    // If either check fails it throws, which we catch below.
+    // JWT_REFRESH_SECRET is separate from JWT_ACCESS_SECRET —
+    // a refresh token cannot be used as an access token and vice versa.
+    payload = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET);
+  } catch {
+    // Covers both tampered tokens and genuinely expired ones.
+    // Generic message — we do not tell the client which case it was.
+    const err = new Error('Invalid or expired refresh token');
+    err.statusCode = 401;
+    throw err;
+  }
+
+  // payload.sub is the userId encoded in the token at login time.
+  // We query the DB to confirm the user still exists.
+  // This guards against tokens that are technically valid but belong
+  // to accounts that have since been deleted.
+  const user = await User.findById(payload.sub);
+  if (!user) {
+    const err = new Error('User no longer exists');
+    err.statusCode = 401;
+    throw err;
+  }
+
+  // Issue a fresh access token using the same function used at login.
+  // Access token lifetime is controlled by JWT_ACCESS_EXPIRY in .env (15m).
+  const accessToken = generateAccessToken(user);
+  return { accessToken };
+}
+
+module.exports = { register, login, refresh };

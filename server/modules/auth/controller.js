@@ -84,4 +84,37 @@ async function login(req, res, next) {
   }
 }
 
-module.exports = { register, login };
+// ─── refresh ──────────────────────────────────────────────────
+// HTTP handler for POST /api/auth/refresh.
+// Extracts the refresh token from the request body, passes it
+// to the auth service, and returns a new access token.
+//
+// This controller does no validation or logic — it is HTTP only.
+// All token verification and user lookup happens in service.js.
+//
+// Called automatically by the frontend axios interceptor when
+// a 401 is detected. The user never triggers this manually.
+
+async function refresh(req, res, next) {
+  try {
+    // Pull refresh token from request body.
+    // If it is missing or invalid, the service throws a 401.
+    const { refreshToken } = req.body;
+
+    const result = await authService.refresh(refreshToken);
+
+    // Returns only the new access token.
+    // The refresh token itself is not rotated at MVP.
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (err) {
+    // All errors (missing token, invalid token, user not found)
+    // are thrown from the service with err.statusCode attached.
+    // next(err) routes them to the global error handler in server.js.
+    next(err);
+  }
+}
+
+module.exports = { register, login, refresh };

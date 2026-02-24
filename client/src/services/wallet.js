@@ -6,12 +6,12 @@
  *   Components never call axios directly — always through here.
  */
 
-import axios from 'axios';
+import axiosInstance from './axiosInstance';
 
 // Retrieves the authenticated user's wallet.
 // Requires a valid access token in Authorization header.
 export async function fetchMyWallet(accessToken) {
-  const response = await axios.get('/api/wallet/me', {
+  const response = await axiosInstance.get('/api/wallet/me', {
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
