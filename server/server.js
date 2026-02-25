@@ -101,6 +101,9 @@ app.use('/api/wallet', walletRoutes);
 const tradeRoutes = require('./modules/trade/routes');
 app.use('/api/trade', tradeRoutes);
 
+const portfolioRoutes = require('./modules/portfolio/routes');
+app.use('/api/portfolio', portfolioRoutes);
+
 // ─── Health Check ─────────────────────────────────────────────
 // A simple endpoint to verify the server is running
 // Used by monitoring tools and deployment pipelines
