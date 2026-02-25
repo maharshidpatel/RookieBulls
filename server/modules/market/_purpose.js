@@ -23,4 +23,19 @@
  *
  * MVP scope:
  *  Hardcoded prices only. No external API calls.
+ * 
+ * * IN PRODUCTION:
+ *   Only this module changes when real or delayed data is introduced.
+ *   All callers (trade service, portfolio service) continue to call
+ *   getPrice(ticker) with no changes required on their end.
+ *
+ * WHAT DOES NOT BELONG HERE:
+ *   - HTTP routes or controllers
+ *   - Trade execution logic
+ *   - Wallet or balance operations
+ *   - MongoDB schemas or queries
+ *
+ * REQUEST FLOW:
+ *   trade/service.js
+ *     → market/service.js → getPrice(ticker) → returns number
  */
