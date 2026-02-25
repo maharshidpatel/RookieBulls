@@ -42,6 +42,22 @@ export function setAuthCallbacks(getAuthFn, logoutFn, updateTokenFn) {
   onTokenRefresh = updateTokenFn;
 }
 
+// ─── Request Interceptor ──────────────────────────────────────
+// Runs before every request is sent.
+// Reads the current access token from auth state and attaches it
+// to the Authorization header automatically.
+// No service function or component needs to handle this manually.
+axiosInstance.interceptors.request.use((config) => {
+  const auth = getAuth ? getAuth() : null;
+  const token = auth?.accessToken;
+
+  if (token) {
+    config.headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  return config;
+});
+
 // ─── Response Interceptor ─────────────────────────────────────
 // Runs after every response is received.
 // The first function handles success (2xx) — we pass through unchanged.
