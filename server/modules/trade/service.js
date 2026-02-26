@@ -169,7 +169,7 @@ const {
 const executeBuy = async (userId, ticker, quantity) => {
   // Step 1: Get the current mock price for this ticker.
   // getPrice() throws 404 if the ticker is not in the mock price table.
-  const price = getPrice(ticker);
+  const price = await getPrice(ticker);
 
   // Step 2: Calculate the total cost of this purchase.
   const totalCost = quantity * price;
@@ -212,7 +212,7 @@ const executeSell = async (userId, ticker, quantity) => {
   // Uses the same price source as buy — market/service.js.
   // In a real platform this would be the live bid price.
   // At MVP it is the same hardcoded number.
-  const price = getPrice(ticker);
+  const price = await getPrice(ticker);
 
   // Step 2: Validate that the user owns this stock and has enough shares.
   // getPosition() returns the current Position document or null.

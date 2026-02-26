@@ -35,7 +35,19 @@ const required = [
   'JWT_REFRESH_SECRET',
   'JWT_ACCESS_EXPIRY',
   'JWT_REFRESH_EXPIRY',
-  'CLIENT_ORIGIN'
+  'CLIENT_ORIGIN',
+
+  // The server must have a Finnhub API key to fetch stock prices.
+  // If this is missing, market/service.js cannot call Finnhub and
+  // the entire trade engine breaks silently. Fail at startup instead.
+  'FINNHUB_API_KEY',
+
+  // BYPASS_MARKET_HOURS is intentionally not in this required list.
+  // Reason: it is an optional development flag, not a secret or credential.
+  // If it is absent from .env, market/service.js treats it as false,
+  // which is the correct safe default (market hours enforced).
+  // Making it required would force every developer to add it manually,
+  // which adds friction for no safety benefit.
 ]
 
 const missing = required.filter(key => !process.env[key])
@@ -54,6 +66,18 @@ const env = {
   JWT_ACCESS_EXPIRY: process.env.JWT_ACCESS_EXPIRY,
   JWT_REFRESH_EXPIRY: process.env.JWT_REFRESH_EXPIRY,
   CLIENT_ORIGIN: process.env.CLIENT_ORIGIN,
+
+  // Finnhub API key — used exclusively inside market/service.js.
+  // No other file reads this value directly.
+  FINNHUB_API_KEY: process.env.FINNHUB_API_KEY,
+
+  // Development bypass flag for market hours enforcement.
+  // process.env always returns a string, never a boolean.
+  // The string 'true' is compared explicitly so that any other value
+  // ('false', '', undefined) resolves to false — the safe default.
+  // This means if the variable is missing from .env entirely,
+  // BYPASS_MARKET_HOURS is false and market hours are enforced.
+  BYPASS_MARKET_HOURS: process.env.BYPASS_MARKET_HOURS === 'true',
 };
 
 module.exports = { env };
