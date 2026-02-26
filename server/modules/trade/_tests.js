@@ -145,3 +145,69 @@
  *   Body: { "ticker": "AAPL", "quantity": 1 }
  *   Expected: 400, message contains 'do not hold'
  */
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────────
+ * STEP 5.6 TESTS — Market hours enforcement
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * Prerequisites:
+ *  - BYPASS_MARKET_HOURS=false in .env
+ *  - Server restarted after changing the flag
+ *  - Run these tests outside of market hours (evening, weekend, or holiday)
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * TEST — Buy blocked when market is closed
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POST http://localhost:5000/api/trade/buy
+ * Header: Authorization: Bearer <access_token>
+ * Body:   { "ticker": "AAPL", "quantity": 1 }
+ *
+ * Expected:
+ * Status: 403
+ * { "status": "error", "message": "Market is currently closed" }
+ *
+ * What to confirm:
+ *  - Trade is rejected before any price lookup or wallet debit
+ *  - Status is 403 not 400 or 500
+ *  - Wallet balance is unchanged
+ *  - No trade record created in DB
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * TEST — Sell blocked when market is closed
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POST http://localhost:5000/api/trade/sell
+ * Header: Authorization: Bearer <access_token>
+ * Body:   { "ticker": "AAPL", "quantity": 1 }
+ *
+ * Expected:
+ * Status: 403
+ * { "status": "error", "message": "Market is currently closed" }
+ *
+ * What to confirm:
+ *  - Sell is rejected at the same first step as buy
+ *  - No position changes occur
+ *  - No trade record created in DB
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * TEST — Buy succeeds when bypass is enabled
+ * ─────────────────────────────────────────────────────────────────────────────
+ * In server/.env set: BYPASS_MARKET_HOURS=true
+ * Restart the server.
+ * Run outside of market hours.
+ *
+ * POST http://localhost:5000/api/trade/buy
+ * Header: Authorization: Bearer <access_token>
+ * Body:   { "ticker": "AAPL", "quantity": 1 }
+ *
+ * Expected:
+ * Status: 201 with trade document
+ *
+ * What to confirm:
+ *  - Trade executes normally with bypass enabled
+ *  - priceAtExecution is a real Finnhub price, not hardcoded
+ *  - Wallet balance reduced by quantity × priceAtExecution
+ *
+ * NOTE: BYPASS_MARKET_HOURS=true is kept on during development.
+ *       Set to false before deploying to production.
+ */
