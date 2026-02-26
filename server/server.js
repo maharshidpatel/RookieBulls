@@ -104,6 +104,10 @@ app.use('/api/trade', tradeRoutes);
 const portfolioRoutes = require('./modules/portfolio/routes');
 app.use('/api/portfolio', portfolioRoutes);
 
+// Market routes — no auth required, prices are public information
+const marketRoutes = require('./modules/market/routes')
+app.use('/api/market', marketRoutes)
+
 // ─── Health Check ─────────────────────────────────────────────
 // A simple endpoint to verify the server is running
 // Used by monitoring tools and deployment pipelines

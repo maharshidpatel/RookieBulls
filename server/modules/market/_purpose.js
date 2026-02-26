@@ -1,41 +1,59 @@
 /**
  * MODULE: /server/modules/market
  *
- * Provides stock price data to the rest of the application.
- * In MVP this is entirely mocked — prices are hardcoded.
+ * The single point of contact between this application and the
+ * external market data provider (Finnhub).
+ *
+ * No other module in the application knows that Finnhub exists.
+ * If the provider changes, only this module changes.
+ * This is called the middleman pattern.
  *
  * Responsibilities:
- *  - Expose an endpoint that returns a stock price by ticker
- *  - In MVP: return hardcoded prices (AAPL = $180 etc.)
- *  - Post-MVP: replace hardcoded prices with a real or delayed feed
- *    without changing any other module
+ *  - getPrice(ticker)      — fetch current delayed price from Finnhub
+ *  - searchTickers(query)  — search for US-listed common stocks by name or symbol
+ *  - isMarketOpen()        — check whether the NYSE is currently open
  *
- * Why this is its own module:
+ * What changed from MVP:
+ *  - Hardcoded MOCK_PRICES map removed
+ *  - getSupportedTickers() removed (replaced by searchTickers())
+ *  - getPrice() is now async — makes a real HTTP call to Finnhub
+ *  - routes.js and controller.js added to expose market data via HTTP
+ *
+ * Why market data has its own module:
  *  The trade module needs prices to execute trades.
- *  By isolating price retrieval here, the trade module never
- *  cares where prices come from — it just asks the market module.
- *  When real price data replaces mock data, only this module changes.
- *  The trade module, portfolio module, and frontend are untouched.
+ *  The portfolio module needs prices to calculate PnL.
+ *  By isolating all price retrieval here, neither module cares
+ *  where prices come from — they just call getPrice(ticker).
+ *  Swapping Finnhub for another provider = change this module only.
+ *  Trade, portfolio, and frontend are completely unaffected.
  *
- * This is called an abstraction boundary.
- * The market module is the only part of the system that knows
- * how prices are obtained. Everything else just consumes them.
- *
- * MVP scope:
- *  Hardcoded prices only. No external API calls.
- * 
- * * IN PRODUCTION:
- *   Only this module changes when real or delayed data is introduced.
- *   All callers (trade service, portfolio service) continue to call
- *   getPrice(ticker) with no changes required on their end.
+ * Why no auth is required on market routes:
+ *  Stock prices and market status are public information.
+ *  Authentication is enforced at the trade level, not the price level.
  *
  * WHAT DOES NOT BELONG HERE:
- *   - HTTP routes or controllers
- *   - Trade execution logic
- *   - Wallet or balance operations
- *   - MongoDB schemas or queries
+ *  - Trade execution logic (belongs in trade/service.js)
+ *  - Wallet or balance operations (belongs in wallet/service.js)
+ *  - Portfolio calculations (belongs in portfolio/service.js)
+ *  - Any direct Finnhub calls outside of service.js
  *
  * REQUEST FLOW:
- *   trade/service.js
- *     → market/service.js → getPrice(ticker) → returns number
+ *  GET /api/market/price/:ticker
+ *    → market/routes.js
+ *    → market/controller.js
+ *    → market/service.js → Finnhub /quote → returns price as number
+ *
+ *  GET /api/market/search?q=query
+ *    → market/routes.js
+ *    → market/controller.js
+ *    → market/service.js → Finnhub /search → returns filtered results array
+ *
+ *  GET /api/market/status
+ *    → market/routes.js
+ *    → market/controller.js
+ *    → market/service.js → Finnhub /stock/market-status → returns isOpen boolean
+ *
+ *  Internal callers (no HTTP):
+ *    trade/service.js     → getPrice(ticker)
+ *    portfolio/service.js → getPrice(ticker) via Promise.all()
  */
