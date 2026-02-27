@@ -3,29 +3,43 @@
  * ─────────────────────────────────────────────────────────────
  * Responsibility:
  *   Main landing page after login.
- *   Displays the authenticated user's wallet balance.
+ *   Displays wallet balance, market status, trade form, and portfolio.
  *
  * What belongs here:
- *   Wallet balance display, loading and error states.
+ *   Wallet balance display, market status state, loading and error states.
  *
  * What does not belong here:
  *   Auth logic, trade logic, direct axios calls.
+ *
+ * WHAT CHANGED FROM MVP:
+ *   - MarketStatus component added above the trade form
+ *   - marketOpen state added — tracks whether NYSE is currently open
+ *   - marketOpen passed to TradeForm so buttons disable when market is closed
+ *   - onMarketStatusChange passed to MarketStatus so it can update marketOpen
  */
 
-import { useEffect, useState, useCallback } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { fetchMyWallet } from '../services/wallet';
-import { fetchMyPortfolio } from '../services/portfolio';
-import TradeForm from '../components/TradeForm';
-import PortfolioTable from '../components/PortfolioTable';
+import { useEffect, useState, useCallback } from 'react'
+import { useAuth } from '../context/AuthContext'
+import { fetchMyWallet } from '../services/wallet'
+import { fetchMyPortfolio } from '../services/portfolio'
+import TradeForm from '../components/TradeForm'
+import PortfolioTable from '../components/PortfolioTable'
+import MarketStatus from '../components/MarketStatus'
 
 export default function DashboardPage() {
-  const { user, logout } = useAuth();
+  const { user, logout } = useAuth()
 
-  const [wallet, setWallet]       = useState(null);
-  const [portfolio, setPortfolio] = useState(null);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState(null);
+  const [wallet, setWallet]       = useState(null)
+  const [portfolio, setPortfolio] = useState(null)
+  const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState(null)
+
+  // marketOpen — tracks whether the NYSE is currently open.
+  // Starts as true so buttons are not pre-emptively disabled before
+  // the first status fetch completes. MarketStatus updates this
+  // within seconds of mounting via onMarketStatusChange.
+  // Passed to TradeForm to disable buy and sell buttons when false.
+  const [marketOpen, setMarketOpen] = useState(true)
 
   // loadData()
   //
@@ -38,24 +52,34 @@ export default function DashboardPage() {
   // unnecessary re-renders on every parent render cycle.
   const loadData = useCallback(async () => {
     try {
-      const [wallet, portfolio] = await Promise.all([
+      const [walletData, portfolioData] = await Promise.all([
         fetchMyWallet(),
         fetchMyPortfolio(),
-      ]);
-      setWallet(wallet);
-      setPortfolio(portfolio);
-      setError(null);
+      ])
+      setWallet(walletData)
+      setPortfolio(portfolioData)
+      setError(null)
     } catch {
-      setError('Failed to load dashboard data. Please refresh.');
+      setError('Failed to load dashboard data. Please refresh.')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  }, []);
+  }, [])
 
-  // Fetch wallet and portfolio on first render.
+  // onMarketStatusChange(isOpen)
+  //
+  // Called by MarketStatus every time it fetches a new status.
+  // Updates marketOpen state which flows down to TradeForm.
+  // Wrapped in useCallback — passed as a prop to MarketStatus which
+  // uses it inside a useEffect. Stable reference avoids unnecessary
+  // effect re-runs in MarketStatus.
+  const onMarketStatusChange = useCallback((isOpen) => {
+    setMarketOpen(isOpen)
+  }, [])
+
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    loadData()
+  }, [loadData])
 
   return (
     <div style={styles.page}>
@@ -74,7 +98,7 @@ export default function DashboardPage() {
         <hr style={styles.divider} />
 
         {loading && <p style={styles.status}>Loading...</p>}
-        {error   && <p style={styles.error}>{error}</p>}
+        {error   && <p style={styles.errorText}>{error}</p>}
 
         {!loading && !error && (
           <>
@@ -91,8 +115,14 @@ export default function DashboardPage() {
 
             <hr style={styles.divider} />
 
-            {/* Trade form — triggers full reload after every trade */}
-            <TradeForm onTradeComplete={loadData} />
+            {/* Market status indicator — shows OPEN/CLOSED, polls every 60s */}
+            <MarketStatus onStatusChange={onMarketStatusChange} />
+
+            {/* Trade form — buttons disabled when market is closed */}
+            <TradeForm
+              onTradeComplete={loadData}
+              marketOpen={marketOpen}
+            />
 
             <hr style={styles.divider} />
 
@@ -103,7 +133,7 @@ export default function DashboardPage() {
       </div>
 
     </div>
-  );
+  )
 }
 
 const styles = {
@@ -166,8 +196,8 @@ const styles = {
     fontSize: '14px',
     color: '#888',
   },
-  error: {
+  errorText: {
     fontSize: '14px',
     color: 'red',
   },
-};
+}
