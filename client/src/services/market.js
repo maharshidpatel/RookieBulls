@@ -1,0 +1,47 @@
+/*
+ * services/market.js
+ * ─────────────────────────────────────────────────────────────────────────────
+ * PURPOSE:
+ *   Frontend HTTP calls to the market API endpoints.
+ *   All market data the frontend needs flows through this file.
+ *
+ * WHY A SEPARATE SERVICE FILE:
+ *   Components should not contain raw HTTP calls.
+ *   If the market API URL or response shape changes, this is the
+ *   only file that needs updating — not every component that uses it.
+ *
+ * WHY PLAIN AXIOS AND NOT axiosInstance:
+ *   axiosInstance adds the Authorization header automatically.
+ *   Market endpoints are public — no auth header is needed or expected.
+ *   Using axiosInstance here would send a token unnecessarily.
+ *   Plain axios is the correct choice for public endpoints.
+ *
+ * WHAT DOES NOT BELONG HERE:
+ *   - Component state or rendering logic
+ *   - Trade or wallet HTTP calls (belong in their own service files)
+ */
+
+import axios from 'axios'
+
+// searchTickers(query)
+//
+// Calls GET /api/market/search?q=query
+// Returns an array of matching stocks: [{ ticker, companyName, exchange }]
+// Returns an empty array if no results found — never throws on empty.
+// Throws if the server returns an error (400, 503, etc.)
+export const searchTickers = async (query) => {
+  const response = await axios.get('/api/market/search', {
+    params: { q: query },
+  })
+  return response.data.results
+}
+
+// getMarketStatus()
+//
+// Calls GET /api/market/status
+// Returns { isOpen: boolean, message: string }
+// Used by the market status indicator in Step 5.8.
+export const getMarketStatus = async () => {
+  const response = await axios.get('/api/market/status')
+  return response.data
+}

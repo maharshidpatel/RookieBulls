@@ -2,9 +2,16 @@
  * components/TradeForm.jsx
  * ─────────────────────────────────────────────────────────────────────────────
  * PURPOSE:
- *   Renders the trade form — ticker selector, quantity input, buy and sell
+ *   Renders the trade form — ticker search, quantity input, buy and sell
  *   buttons. Calls executeBuy or executeSell from the trade service.
  *   Reports success or failure back to the parent via onTradeComplete.
+ *
+ * WHAT CHANGED FROM MVP:
+ *   - Hardcoded TICKERS array removed
+ *   - <select> dropdown replaced with <TickerSearch> component
+ *   - ticker state now set by TickerSearch's onSelect callback
+ *   - selectedStock state added to display company name after selection
+ *   - Trade buttons disabled until a ticker is selected from search
  *
  * PROPS:
  *   onTradeComplete — function called after a successful trade.
@@ -14,96 +21,107 @@
  *   - Wallet or portfolio state
  *   - HTTP calls other than trade endpoints
  *   - Routing logic
+ *   - Ticker search logic (belongs in TickerSearch.jsx)
  */
 
-import { useState } from 'react';
-import { executeBuy, executeSell } from '../services/trade';
-
-// TICKERS is the list of available mock stocks.
-// Hardcoded on the frontend for MVP — matches the mock price table
-// in server/modules/market/service.js exactly.
-// When a real market endpoint is added, this becomes a fetch call.
-const TICKERS = ['AAPL', 'TSLA', 'MSFT', 'NVDA', 'AMZN'];
+import { useState } from 'react'
+import { executeBuy, executeSell } from '../services/trade'
+import TickerSearch from './TickerSearch'
 
 const TradeForm = ({ onTradeComplete }) => {
-  const [ticker, setTicker]   = useState('AAPL');
-  const [quantity, setQuantity] = useState('');
-  const [message, setMessage] = useState(null);   // { type: 'success'|'error', text: string }
-  const [loading, setLoading] = useState(false);
+  // ticker — the currently selected ticker symbol (e.g. 'AAPL')
+  // null until the user selects a result from TickerSearch
+  const [ticker, setTicker] = useState(null)
+
+  // selectedStock — the full result object from TickerSearch
+  // { ticker, companyName, exchange }
+  // Used to display the company name below the search input
+  // so the user knows exactly what they selected before trading.
+  const [selectedStock, setSelectedStock] = useState(null)
+
+  const [quantity, setQuantity]   = useState('')
+  const [message, setMessage]     = useState(null)  // { type: 'success'|'error', text: string }
+  const [loading, setLoading]     = useState(false)
+
+  // handleSelect(result)
+  //
+  // Called by TickerSearch when the user clicks a result.
+  // Sets both ticker (the symbol used for trade execution)
+  // and selectedStock (the full object used for display).
+  const handleSelect = (result) => {
+    setTicker(result.ticker)
+    setSelectedStock(result)
+    setMessage(null)
+  }
 
   // handleTrade(action)
   //
   // Shared handler for both buy and sell.
   // action is either 'buy' or 'sell' — passed in from the button click.
   const handleTrade = async (action) => {
-    // Clear any previous feedback message before the new attempt.
-    setMessage(null);
+    setMessage(null)
 
-    const quantityStr = String(quantity).trim();
+    // Guard: ticker must be selected from search before trading.
+    // Buttons are also disabled at the UI level, but this is a
+    // second line of defence in case state is somehow stale.
+    if (!ticker) {
+      setMessage({ type: 'error', text: 'Please search for and select a ticker first' })
+      return
+    }
+
+    const quantityStr = String(quantity).trim()
 
     // Reject decimals explicitly before parsing.
     // parseInt('1.9999') would silently truncate to 1 and pass validation.
     // Checking the raw string for a decimal point catches this before
     // the value ever reaches the server.
     if (quantityStr.includes('.')) {
-    setMessage({ type: 'error', text: 'Quantity must be a whole number of at least 1' });
-    return;
+      setMessage({ type: 'error', text: 'Quantity must be a whole number of at least 1' })
+      return
     }
 
-    const parsedQuantity = parseInt(quantityStr, 10);
+    const parsedQuantity = parseInt(quantityStr, 10)
     if (!parsedQuantity || parsedQuantity < 1) {
-    setMessage({ type: 'error', text: 'Quantity must be a whole number of at least 1' });
-    return;
+      setMessage({ type: 'error', text: 'Quantity must be a whole number of at least 1' })
+      return
     }
 
-    setLoading(true);
+    setLoading(true)
 
     try {
       if (action === 'buy') {
-        await executeBuy(ticker, parsedQuantity);
-        setMessage({ type: 'success', text: `Bought ${parsedQuantity} share(s) of ${ticker}` });
+        await executeBuy(ticker, parsedQuantity)
+        setMessage({ type: 'success', text: `Bought ${parsedQuantity} share(s) of ${ticker}` })
       } else {
-        await executeSell(ticker, parsedQuantity);
-        setMessage({ type: 'success', text: `Sold ${parsedQuantity} share(s) of ${ticker}` });
+        await executeSell(ticker, parsedQuantity)
+        setMessage({ type: 'success', text: `Sold ${parsedQuantity} share(s) of ${ticker}` })
       }
 
-      // Clear quantity input after a successful trade.
-      setQuantity('');
+      // Clear quantity after successful trade.
+      // Ticker and selectedStock are kept — user may want to trade
+      // the same stock again immediately.
+      setQuantity('')
 
       // Notify the parent so it can refresh wallet balance and portfolio.
-      onTradeComplete();
+      onTradeComplete()
     } catch (err) {
-      // Extract the error message from the axios error response.
-      // Falls back to a generic message if the server response is unexpected.
       const text =
         err.response?.data?.message ||
         err.response?.data?.errors?.[0]?.message ||
-        'Something went wrong. Please try again.';
-      setMessage({ type: 'error', text });
+        'Something went wrong. Please try again.'
+      setMessage({ type: 'error', text })
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
     <div style={styles.container}>
       <h2 style={styles.heading}>Trade</h2>
 
       <div style={styles.row}>
-        {/* Ticker selector — dropdown of available mock stocks */}
-        <div style={styles.field}>
-          <label style={styles.label}>Ticker</label>
-          <select
-            value={ticker}
-            onChange={(e) => setTicker(e.target.value)}
-            style={styles.select}
-            disabled={loading}
-          >
-            {TICKERS.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-        </div>
+        {/* Ticker search — replaces the hardcoded dropdown from MVP */}
+        <TickerSearch onSelect={handleSelect} disabled={loading} />
 
         {/* Quantity input */}
         <div style={styles.field}>
@@ -121,18 +139,37 @@ const TradeForm = ({ onTradeComplete }) => {
         </div>
       </div>
 
+      {/* Selected stock confirmation — shown after a ticker is chosen.
+          Gives the user a clear confirmation of what they are about to trade
+          before they commit to a buy or sell. */}
+      {selectedStock && (
+        <p style={styles.selectedLabel}>
+          Selected: <strong>{selectedStock.ticker}</strong> — {selectedStock.companyName}
+        </p>
+      )}
+
       <div style={styles.buttonRow}>
         <button
           onClick={() => handleTrade('buy')}
-          disabled={loading}
-          style={{ ...styles.button, ...styles.buyButton }}
+          // Disabled when loading OR when no ticker has been selected.
+          // A trade cannot execute without a ticker.
+          disabled={loading || !ticker}
+          style={{
+            ...styles.button,
+            ...styles.buyButton,
+            ...(!ticker ? styles.buttonDisabled : {}),
+          }}
         >
           {loading ? 'Processing...' : 'Buy'}
         </button>
         <button
           onClick={() => handleTrade('sell')}
-          disabled={loading}
-          style={{ ...styles.button, ...styles.sellButton }}
+          disabled={loading || !ticker}
+          style={{
+            ...styles.button,
+            ...styles.sellButton,
+            ...(!ticker ? styles.buttonDisabled : {}),
+          }}
         >
           {loading ? 'Processing...' : 'Sell'}
         </button>
@@ -145,8 +182,8 @@ const TradeForm = ({ onTradeComplete }) => {
         </p>
       )}
     </div>
-  );
-};
+  )
+}
 
 const styles = {
   container: {
@@ -163,7 +200,8 @@ const styles = {
   row: {
     display: 'flex',
     gap: '16px',
-    marginBottom: '16px',
+    marginBottom: '8px',
+    alignItems: 'flex-end',
   },
   field: {
     display: 'flex',
@@ -174,19 +212,17 @@ const styles = {
     fontSize: '13px',
     color: '#555',
   },
-  select: {
-    padding: '8px',
-    fontSize: '14px',
-    borderRadius: '4px',
-    border: '1px solid #ccc',
-    minWidth: '100px',
-  },
   input: {
     padding: '8px',
     fontSize: '14px',
     borderRadius: '4px',
     border: '1px solid #ccc',
     width: '100px',
+  },
+  selectedLabel: {
+    fontSize: '13px',
+    color: '#333',
+    margin: '0 0 12px 0',
   },
   buttonRow: {
     display: 'flex',
@@ -209,6 +245,10 @@ const styles = {
     backgroundColor: '#c62828',
     color: '#fff',
   },
+  buttonDisabled: {
+    opacity: 0.5,
+    cursor: 'not-allowed',
+  },
   success: {
     color: '#2e7d32',
     margin: 0,
@@ -219,6 +259,6 @@ const styles = {
     margin: 0,
     fontSize: '14px',
   },
-};
+}
 
-export default TradeForm;
+export default TradeForm
