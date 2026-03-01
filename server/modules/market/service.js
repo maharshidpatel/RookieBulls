@@ -94,6 +94,75 @@ const getPrice = async (ticker) => {
   }
 }
 
+// getQuote(ticker)
+//
+// Returns a full quote object for a single ticker.
+// Used by portfolio service, GetQuotePopup, and the Quote page.
+//
+// Why separate from getPrice():
+//   getPrice() returns a number — simple interface for the trade engine.
+//   getQuote() returns a full object — richer data for UI and portfolio math.
+//   Both call the same Finnhub /quote endpoint. No extra API requests.
+//
+// Finnhub /quote response fields used:
+//   c  → current price
+//   d  → change in price since previous close (dollar amount per share)
+//   dp → change percent since previous close
+//   h  → day high
+//   l  → day low
+//   o  → day open
+//   pc → previous close
+//   t  → timestamp (unix seconds)
+//
+// Returns:
+//   { ticker, price, change, changePercent, high, low, open, prevClose, timestamp }
+//
+// Throws 404 if the ticker is not found (c === 0).
+// Throws 503 if the Finnhub call fails.
+const getQuote = async (ticker) => {
+  const normalized = ticker.toUpperCase()
+
+  try {
+    const response = await axios.get(`${FINNHUB_BASE_URL}/quote`, {
+      params: {
+        symbol: normalized,
+        token: env.FINNHUB_API_KEY,
+      },
+    })
+
+    const data = response.data
+
+    // Finnhub returns c: 0 for unknown tickers — treat as not found.
+    if (!data.c || data.c === 0) {
+      const err = new Error(`Ticker '${normalized}' was not found or has no price data`)
+      err.statusCode = 404
+      throw err
+    }
+
+    return {
+      ticker:        normalized,
+      price:         data.c,   // current price
+      change:        data.d,   // dollar change per share since prev close
+      changePercent: data.dp,  // percent change since prev close
+      high:          data.h,   // day high
+      low:           data.l,   // day low
+      open:          data.o,   // day open
+      prevClose:     data.pc,  // previous close
+      timestamp:     data.t,   // unix timestamp of last quote
+    }
+
+  } catch (err) {
+    if (err.statusCode) {
+      throw err
+    }
+
+    console.error('Finnhub getQuote failed:', err.message)
+    const serviceErr = new Error('Market data is temporarily unavailable')
+    serviceErr.statusCode = 503
+    throw serviceErr
+  }
+}
+
 // searchTickers(query)
 //
 // Accepts a search string (e.g. 'APP') and returns a list of matching
@@ -226,4 +295,4 @@ const isMarketOpen = async () => {
   }
 }
 
-module.exports = { getPrice, searchTickers, isMarketOpen }
+module.exports = { getPrice, getQuote, searchTickers, isMarketOpen }
