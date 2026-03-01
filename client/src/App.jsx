@@ -1,58 +1,67 @@
-/**
- * App.jsx — Root Application Component
- *
- * The top level of the React component tree.
- * Every page and component in Rookie Bulls is a descendant of this.
- *
- * Responsibilities:
- *  - Set up React Router so URLs map to page components
- *  - Wrap the application in Context providers
- *    so global state is available everywhere
- *
- * What does NOT belong here:
- *  - Any UI layout or content (goes in pages/ and components/)
- *  - Any API calls (goes in services/)
- *  - Any business logic (stays in the backend)
- *
- * This file grows as new pages are added to the router.
- * It should stay thin — routing and providers only.
- */
-
 /*
- * FILE: client/src/App.jsx
- *
- * RESPONSIBILITY:
+ * App.jsx
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Responsibility:
  *   Root component. Defines all client-side routes.
  *   Maps URL paths to page components.
- *   Wraps protected pages in ProtectedRoute.
  *
- * HOW IT FITS:
- *   main.jsx renders this component inside BrowserRouter.
- *   Every page in the app is registered here.
+ * Does NOT belong here:
+ *   UI content, API calls, business logic.
+ *
+ * Route structure:
+ *   Public routes  — /register, /login
+ *   Protected routes — all wrapped in ProtectedRoute → Layout
+ *     Layout renders TopNav + SecondNav + Outlet (current page).
+ *     Child pages receive openBuyPanel / openSellPanel via useOutletContext().
+ *
+ * Catch-all route:
+ *   Any unknown URL (e.g. /dashboard, /xyz) redirects to /summary.
+ *   Prevents blank pages when the user types an unknown path.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import { Routes, Route, Navigate } from 'react-router-dom';
 import RegisterPage from './pages/RegisterPage';
 import LoginPage from './pages/LoginPage';
 import ProtectedRoute from './components/ProtectedRoute';
-import DashboardPage from './pages/DashboardPage';
+import Layout from './components/layout/Layout';
+import SummaryPage from './pages/SummaryPage';
+import HoldingsPage from './pages/HoldingsPage';
+import QuotePage from './pages/QuotePage';
+import HistoryPage from './pages/HistoryPage';
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/register" replace />} />
+
+      {/* Redirect root to summary */}
+      <Route path="/" element={<Navigate to="/summary" replace />} />
+
+      {/* Public routes */}
       <Route path="/register" element={<RegisterPage />} />
-      <Route path="/login" element={<LoginPage />} />
-      
+      <Route path="/login"    element={<LoginPage />} />
+
+      {/* Protected routes — Layout owns TopNav + SecondNav + Outlet */}
+      <Route
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
+        <Route path="/summary"       element={<SummaryPage />} />
+        <Route path="/holdings"      element={<HoldingsPage />} />
+        <Route path="/quote/:ticker" element={<QuotePage />} />
+        <Route path="/history"       element={<HistoryPage />} />
+      </Route>
+
       {/*
-       * Protected routes — only accessible when logged in.
-       * Unauthenticated users are redirected to /login.
+       * Catch-all — any URL that matches nothing above redirects to /summary.
+       * Covers old routes (/dashboard), typos, and direct URL attempts.
+       * Must be last — React Router evaluates routes top to bottom.
        */}
-      <Route path="/dashboard" element={
-        <ProtectedRoute>
-          <DashboardPage />
-        </ProtectedRoute>
-      } />
+      <Route path="*" element={<Navigate to="/summary" replace />} />
+
     </Routes>
   );
 }

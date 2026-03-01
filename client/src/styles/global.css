@@ -1,0 +1,319 @@
+/*
+ * global.css
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Responsibility:
+ *   CSS reset, font loading, and CSS custom property scaffold.
+ *   Defines the visual baseline every component builds on top of.
+ *
+ * Does NOT belong here:
+ *   Component-specific styles, layout rules, animations.
+ *   Those belong in the component files themselves (inline styles or
+ *   component-scoped CSS files added in later steps if needed).
+ *
+ * How it fits:
+ *   Imported once in main.jsx — applies globally before any component renders.
+ *   CSS variables defined here mirror the tokens in theme.js.
+ *   Light mode values live in :root.
+ *   Dark mode values live in [data-theme="dark"] — same property names,
+ *   different values. Toggling data-theme on <html> switches the entire UI.
+ *
+ * Why both theme.js and global.css?
+ *   theme.js is the JavaScript source of truth — used in inline styles
+ *   and component logic (e.g. conditionally applying a color).
+ *   global.css CSS variables are for anything that needs var() — future
+ *   component-scoped CSS files, third-party component overrides, recharts
+ *   theming. Both must stay in sync when tokens change.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+
+/* ─── Font import ────────────────────────────────────────────────────────────
+ *
+ * Inter is loaded from Google Fonts.
+ * weights 400, 500, 600, 700 — matches theme.js font.weight values.
+ * display=swap: browser shows fallback font immediately, swaps when Inter loads.
+ * This prevents invisible text during font load.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+
+/* ─── CSS reset ──────────────────────────────────────────────────────────────
+ *
+ * Browsers apply their own default styles (margin on body, padding on ul,
+ * different box-sizing models). These defaults differ across browsers and
+ * cause inconsistent layouts.
+ *
+ * box-sizing: border-box
+ *   By default, width does not include padding or border (content-box).
+ *   border-box changes this: width = total element width including padding
+ *   and border. This is far more predictable — the element is exactly
+ *   the size you say it is.
+ *   * selector applies it to every element.
+ *   ::before and ::after are pseudo-elements — they must be targeted
+ *   separately or they revert to content-box.
+ *
+ * margin: 0 / padding: 0
+ *   Removes browser default spacing. We define all spacing explicitly.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+
+/* ─── Root element ───────────────────────────────────────────────────────────
+ *
+ * height: 100% ensures the layout can grow to fill the viewport.
+ * font-size: 16px sets the base — all rem values derive from this.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+html {
+  height: 100%;
+  font-size: 16px;
+}
+
+
+/* ─── Body baseline ──────────────────────────────────────────────────────────
+ *
+ * font-family: references the CSS variable defined in :root below.
+ * line-height: 1.5 — comfortable reading rhythm.
+ * -webkit-font-smoothing: antialiased — crisper text rendering on Mac/Chrome.
+ * min-height: 100% — body can grow beyond viewport height without collapsing.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  background-color: var(--color-background);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100%;
+}
+
+
+/* ─── React root ─────────────────────────────────────────────────────────────
+ *
+ * Vite mounts the React app into <div id="root">.
+ * min-height: 100vh ensures the root fills the full viewport height
+ * even when page content is short. Prevents background color gaps.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+#root {
+  min-height: 100vh;
+}
+
+
+/* ─── Element resets ─────────────────────────────────────────────────────────
+ *
+ * img: block removes the small gap images get as inline elements (a quirk
+ *      of images being treated like text characters by default).
+ *      max-width: 100% prevents images from overflowing their container.
+ *
+ * button: inherit font — browsers apply their own font to buttons by default,
+ *         which breaks the Inter stack. cursor: pointer is the expected UX.
+ *
+ * a: removes the default blue underlined link style. Components style links
+ *    explicitly using theme color tokens.
+ *
+ * ul, ol: removes bullet points and list indentation. Navigation and
+ *         custom list components manage their own visual style.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+
+/* ─── CSS custom properties — light mode (default) ───────────────────────────
+ *
+ * :root applies these variables to the entire document.
+ * Every variable here mirrors a token in theme.js lightTheme.
+ * Naming convention: --color-*, --font-*, --spacing-*, --radius-*, --shadow-*
+ *
+ * These are used by any file that prefers var() over a JS import —
+ * future component CSS files, recharts overrides, third-party components.
+ *
+ * When a token changes in theme.js, update the matching variable here too.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Colors */
+
+  /* Colors — base */
+  --color-background:     #f4f5f7;
+  --color-surface:        #ffffff;
+  --color-surface-alt:    #f9fafb;
+  --color-border:         #e2e8f0;
+  --color-white:          #ffffff;
+
+  /* Colors — text */
+  --color-text-primary:   #1a202c;
+  --color-text-secondary: #4a5568;
+  --color-text-muted:     #a0aec0;
+
+  /* Colors — brand / action */
+  --color-accent:         #3b82f6;
+  --color-accent-hover:   #2563eb;
+  --color-success:        #16a34a;
+  --color-success-hover:  #15803d;
+  --color-danger:         #dc2626;
+  --color-danger-hover:   #b91c1c;
+  --color-info:           #0284c7;
+  --color-info-hover:     #0369a1;
+
+  /* Colors — tints (hover inversion backgrounds) */
+  --color-accent-tint:    #eff6ff;
+  --color-success-tint:   #f0fdf4;
+  --color-danger-tint:    #fff1f2;
+  --color-info-tint:      #f0f9ff;
+
+  /* Colors — market status pill */
+  --color-status-open-text:     #15803d;
+  --color-status-open-bg:       #dcfce7;
+  --color-status-open-border:   #bbf7d0;
+  --color-status-closed-text:   #b91c1c;
+  --color-status-closed-bg:     #fee2e2;
+  --color-status-closed-border: #fecaca;
+
+  /* Colors — overlay */
+  --color-overlay: rgba(0, 0, 0, 0.45);
+
+  /* Typography */
+  --font-family:          'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-size-xs:         11px;
+  --font-size-sm:         13px;
+  --font-size-md:         15px;
+  --font-size-lg:         18px;
+  --font-size-xl:         22px;
+  --font-size-brand:      26px;
+  --font-size-2xl:        28px;
+  --font-size-3xl:        36px;
+  --font-weight-regular:  400;
+  --font-weight-medium:   500;
+  --font-weight-semibold: 600;
+  --font-weight-bold:     700;
+
+  /* Spacing */
+  --spacing-1:  4px;
+  --spacing-2:  8px;
+  --spacing-3:  12px;
+  --spacing-4:  16px;
+  --spacing-5:  20px;
+  --spacing-6:  24px;
+  --spacing-8:  32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+  --spacing-16: 64px;
+
+  /* Border radius */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.10), 0 2px 4px rgba(0,0,0,0.06);
+  --shadow-lg: 0 10px 30px rgba(0,0,0,0.15), 0 4px 10px rgba(0,0,0,0.08);
+
+  /* Layout */
+  --top-nav-height:     60px;
+  --second-nav-height:  52px;
+  --content-max-width:  1280px;
+  --panel-width:        380px;
+
+  /* UI component dimensions */
+  --ui-nav-pill-height:    28px;
+  --ui-action-pill-height: 32px;
+  --ui-input-height:       38px;
+
+  /* Transitions */
+  --transition-fast:   150ms ease;
+  --transition-normal: 250ms ease;
+}
+
+
+/* ─── CSS custom properties — dark mode ─────────────────────────────────────
+ *
+ * When data-theme="dark" is set on the <html> element, these variables
+ * override the :root values above. All other variables (font, spacing,
+ * radius, layout, transitions) are unchanged — only colors and shadows differ.
+ *
+ * To activate dark mode later:
+ *   document.documentElement.setAttribute('data-theme', 'dark')
+ * To deactivate:
+ *   document.documentElement.setAttribute('data-theme', 'light')
+ *
+ * No component changes are needed — they all reference var() which
+ * resolves automatically to whichever block is active.
+ * ───────────────────────────────────────────────────────────────────────────── */
+
+[data-theme="dark"] {
+  /* Colors — base */
+  --color-background:     #0f172a;
+  --color-surface:        #1e293b;
+  --color-surface-alt:    #273549;
+  --color-border:         #334155;
+  --color-white:          #ffffff;
+
+  /* Colors — text */
+  --color-text-primary:   #f1f5f9;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted:     #475569;
+
+  /* Colors — brand / action */
+  --color-accent:         #60a5fa;
+  --color-accent-hover:   #93c5fd;
+  --color-success:        #4ade80;
+  --color-success-hover:  #86efac;
+  --color-danger:         #f87171;
+  --color-danger-hover:   #fca5a5;
+  --color-info:           #38bdf8;
+  --color-info-hover:     #7dd3fc;
+
+  /* Colors — tints */
+  --color-accent-tint:    #1e3a5f;
+  --color-success-tint:   #14532d;
+  --color-danger-tint:    #450a0a;
+  --color-info-tint:      #0c4a6e;
+
+  /* Colors — market status pill */
+  --color-status-open-text:     #86efac;
+  --color-status-open-bg:       #14532d;
+  --color-status-open-border:   #166534;
+  --color-status-closed-text:   #fca5a5;
+  --color-status-closed-bg:     #450a0a;
+  --color-status-closed-border: #7f1d1d;
+
+  /* Colors — overlay */
+  --color-overlay: rgba(0, 0, 0, 0.65);
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.30), 0 1px 2px rgba(0,0,0,0.20);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.40), 0 2px 4px rgba(0,0,0,0.25);
+  --shadow-lg: 0 10px 30px rgba(0,0,0,0.50), 0 4px 10px rgba(0,0,0,0.30);
+}

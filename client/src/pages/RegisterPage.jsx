@@ -53,7 +53,7 @@ export default function RegisterPage() {
    */
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/summary" replace />;
   }
 
   async function handleSubmit(e) {

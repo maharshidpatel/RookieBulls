@@ -30,7 +30,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/summary" replace />;
   }
 
   async function handleSubmit(e) {
@@ -43,13 +43,13 @@ export default function LoginPage() {
       /*
        * Temporary: log the result to confirm tokens are returned.
        * This will be replaced in 2.10 when AuthContext stores the tokens
-       * and redirects the user to the dashboard.
+       * and redirects the user to the /summary.
        */
       
       // Pass all three — user, access token, and refresh token.
       // AuthContext stores all of them in sessionStorage.
       login(result.data.user, result.data.accessToken, result.data.refreshToken);
-      navigate('/dashboard');
+      navigate('/summary');
     
     } catch (err) {
       const data = err.response?.data;
