@@ -25,7 +25,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../../middleware/auth');
 const { validateTrade, handleValidationErrors } = require('./validators');
-const { buy, sell } = require('./controller');
+const { buy, sell, history } = require('./controller');
 
 // POST /api/trade/buy
 // All four middleware run in order for every buy request.
@@ -34,5 +34,10 @@ router.post('/buy', authenticate, validateTrade, handleValidationErrors, buy);
 // POST /api/trade/sell
 // Same middleware chain as buy — same input shape, same auth requirement.
 router.post('/sell', authenticate, validateTrade, handleValidationErrors, sell);
+
+// GET /api/trade/history
+// authenticate — only the logged-in user's own trades are returned.
+// No validation middleware needed — no request body, userId comes from the token.
+router.get('/history', authenticate, history);
 
 module.exports = router;

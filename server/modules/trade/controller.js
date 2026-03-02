@@ -39,7 +39,7 @@ API contracts
     422:      { success: false, errors: [{ field, message }] }
  */
 
-const { executeBuy, executeSell } = require('./service');
+const { executeBuy, executeSell, getTradeHistory } = require('./service');
 
 // buy(req, res, next)
 //
@@ -93,4 +93,26 @@ const sell = async (req, res, next) => {
   }
 };
 
-module.exports = { buy, sell };
+// history(req, res, next)
+//
+// Handles GET /api/trade/history
+//
+// Returns all trades for the authenticated user, newest first.
+// req.user.sub — userId from the verified JWT.
+//
+// 200: { success: true, data: { trades: [] } }
+const history = async (req, res, next) => {
+  try {
+    const userId = req.user.sub;
+    const trades = await getTradeHistory(userId);
+
+    return res.status(200).json({
+      success: true,
+      data: { trades },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { buy, sell, history };

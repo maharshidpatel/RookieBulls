@@ -296,4 +296,20 @@ const executeSell = async (userId, ticker, quantity) => {
   return trade
 }
 
-module.exports = { executeBuy, executeSell }
+// getTradeHistory(userId)
+//
+// Returns all trades for a user, sorted newest first.
+// No pagination at Step 6 — full history returned in one response.
+// Pagination added post-deployment when real volume warrants it (noted in post-MVP).
+//
+// Returns an empty array if the user has made no trades.
+const getTradeHistory = async (userId) => {
+  // Trade.find() queries by userId — returns only this user's trades.
+  // .sort({ createdAt: -1 }) — -1 = descending, so newest trades appear first.
+  // .lean() returns plain JS objects instead of Mongoose documents.
+  // Plain objects are lighter — no Mongoose methods attached, faster to serialize.
+  const trades = await Trade.find({ userId }).sort({ createdAt: -1 }).lean()
+  return trades
+}
+
+module.exports = { executeBuy, executeSell, getTradeHistory }
