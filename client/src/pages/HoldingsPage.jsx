@@ -35,6 +35,7 @@ import { useNavigate, useOutletContext } from 'react-router-dom';
 import { fetchMyWallet } from '../services/wallet';
 import { fetchMyPortfolio } from '../services/portfolio';
 import theme from '../styles/theme';
+import tableStyles from '../styles/tableStyles';
 
 const HoldingsPage = () => {
   const navigate = useNavigate();
@@ -148,15 +149,18 @@ const HoldingsPage = () => {
         <div style={styles.tableWrapper}>
           <table style={styles.table}>
             <thead>
-              <tr>
-                {[
-                  'Symbol', 'Qty', 'Avg Price', 'Book Value',
-                  'Current Price', 'Market Value', 'P/L', 'P/L %', '',
-                ].map((heading, i) => (
-                  <th key={i} style={styles.th}>{heading}</th>
-                ))}
-              </tr>
-            </thead>
+                <tr>
+                  <th style={styles.th}>Symbol</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Qty</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Avg Price</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Book Value</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Current Price</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Market Value</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>P/L</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>P/L %</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}></th>
+                </tr>
+              </thead>
             <tbody>
               {portfolio.positions.map((position, index) => {
 
@@ -196,29 +200,29 @@ const HoldingsPage = () => {
                       </span>
                     </td>
 
-                    <td style={styles.td}>
+                    <td style={{ ...styles.td, textAlign: 'right' }}>
                       {position.quantity}
                     </td>
 
-                    <td style={styles.td}>
+                    <td style={{ ...styles.td, textAlign: 'right' }}>
                       {formatCurrency(position.avgBuyPrice)}
                     </td>
 
-                    {/* Book Value = Qty × Avg Price = costBasis from server */}
-                    <td style={styles.td}>
+                    <td style={{ ...styles.td, textAlign: 'right' }}>
                       {formatCurrency(position.costBasis)}
                     </td>
 
-                    <td style={styles.td}>
+                    <td style={{ ...styles.td, textAlign: 'right' }}>
                       {formatCurrency(position.currentPrice)}
                     </td>
 
-                    <td style={styles.td}>
+                    <td style={{ ...styles.td, textAlign: 'right' }}>
                       {formatCurrency(position.marketValue)}
                     </td>
 
                     <td style={{
                       ...styles.td,
+                      textAlign: 'right',
                       color: pnlColor(position.pnl),
                       fontWeight: theme.font.weight.medium,
                     }}>
@@ -227,6 +231,7 @@ const HoldingsPage = () => {
 
                     <td style={{
                       ...styles.td,
+                      textAlign: 'right',
                       color: pnlColor(position.pnlPercent),
                       fontWeight: theme.font.weight.medium,
                     }}>
@@ -234,12 +239,12 @@ const HoldingsPage = () => {
                     </td>
 
                     {/* Buy + Sell buttons — single cell, small gap */}
-                    <td style={styles.tdAction}>
+                    <td style={{ ...styles.tdAction, textAlign: 'right' }}>
                       <button
                         style={{
                           ...styles.actionBtn,
                           ...styles.buyBtn,
-                          ...(isBuyHovered ? styles.buyBtnHover : {}),
+                          ...(isBuyHovered ? styles.buyBtnHover : {}), 
                         }}
                         onClick={() => openBuyPanel(position.ticker)}
                         onMouseEnter={() => setHoveredBtn({ rowIndex: index, side: 'buy' })}
@@ -284,8 +289,6 @@ const styles = {
     gap: theme.spacing[4],
   },
 
-  // ── Loading / error states ──────────────────────────────────────────────────
-
   stateMessage: {
     color: theme.colors.textSecondary,
     fontSize: theme.font.size.md,
@@ -302,8 +305,6 @@ const styles = {
     borderRadius: theme.radius.md,
     border: `1px solid ${theme.colors.danger}`,
   },
-
-  // ── Page header ─────────────────────────────────────────────────────────────
 
   header: {
     display: 'flex',
@@ -342,62 +343,16 @@ const styles = {
     backgroundColor: theme.colors.border,
   },
 
-  // ── Table ───────────────────────────────────────────────────────────────────
+  // ── Shared table styles ─────────────────────────────────────────────────────
+  ...tableStyles,
 
-  tableWrapper: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    border: `1px solid ${theme.colors.border}`,
-    boxShadow: theme.shadow.sm,
-    overflow: 'hidden',
-  },
-
-  table: {
-    width: '100%',
-    borderCollapse: 'collapse',
-    fontSize: theme.font.size.sm,
-  },
-
-  th: {
-    padding: `${theme.spacing[3]} ${theme.spacing[4]}`,
-    textAlign: 'left',
-    fontSize: theme.font.size.xs,
-    fontWeight: theme.font.weight.semibold,
-    color: theme.colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
-    backgroundColor: theme.colors.surfaceAlt,
-    borderBottom: `1px solid ${theme.colors.border}`,
-    whiteSpace: 'nowrap',
-  },
-
-  tr: {
-    borderBottom: `1px solid ${theme.colors.border}`,
-    transition: `background-color ${theme.transition.fast}`,
-  },
-
-  td: {
-    padding: `${theme.spacing[3]} ${theme.spacing[4]}`,
-    color: theme.colors.textPrimary,
-    whiteSpace: 'nowrap',
-  },
+  // ── Row action buttons ──────────────────────────────────────────────────────
 
   tdAction: {
     padding: `${theme.spacing[2]} ${theme.spacing[3]}`,
     whiteSpace: 'nowrap',
   },
 
-  tickerLink: {
-    color: theme.colors.accent,
-    fontWeight: theme.font.weight.semibold,
-    cursor: 'pointer',
-  },
-
-  // ── Row action buttons ──────────────────────────────────────────────────────
-  //
-  // Smaller than SecondNav action buttons — compact for table rows.
-  // Same filled default + tint hover pattern as SecondNav.
-  //
   actionBtn: {
     height: '26px',
     padding: `0 ${theme.spacing[3]}`,
@@ -431,27 +386,6 @@ const styles = {
     color: theme.colors.dangerHover,
     borderColor: theme.colors.dangerHover,
     backgroundColor: theme.colors.dangerTint,
-  },
-
-  // ── Empty state ─────────────────────────────────────────────────────────────
-
-  emptyState: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    border: `1px solid ${theme.colors.border}`,
-    padding: `${theme.spacing[10]} ${theme.spacing[6]}`,
-    textAlign: 'center',
-  },
-
-  emptyStateText: {
-    fontSize: theme.font.size.md,
-    color: theme.colors.textSecondary,
-    marginBottom: theme.spacing[2],
-  },
-
-  emptyStateHint: {
-    fontSize: theme.font.size.sm,
-    color: theme.colors.textMuted,
   },
 };
 

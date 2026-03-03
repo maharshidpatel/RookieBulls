@@ -29,7 +29,7 @@ import axiosInstance from './axiosInstance';
 // Returns an empty array if the user has no trade history.
 // Throws on network failure or auth error (handled by axiosInstance).
 const fetchTradeHistory = async () => {
-  const response = await axiosInstance.get('/trade/history');
+  const response = await axiosInstance.get('/api/trade/history');
   return response.data.data.trades;
 };
 

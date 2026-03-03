@@ -36,6 +36,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchMyWallet } from '../services/wallet';
 import { fetchMyPortfolio } from '../services/portfolio';
 import theme from '../styles/theme';
+import tableStyles from '../styles/tableStyles';
 
 const SummaryPage = () => {
     const navigate = useNavigate();
@@ -526,44 +527,13 @@ const styles = {
     textTransform: 'uppercase',
     letterSpacing: '0.05em',
     padding: `${theme.spacing[3]} ${theme.spacing[4]}`,
-    backgroundColor: theme.colors.surfaceAlt,
-    borderBottom: `1px solid ${theme.colors.border}`,
   },
 
-  moversTable: {
-    width: '100%',
-    borderCollapse: 'collapse',
-  },
-
-  moversTh: {
-    padding: `${theme.spacing[2]} ${theme.spacing[4]}`,
-    fontSize: theme.font.size.xs,
-    fontWeight: theme.font.weight.semibold,
-    color: theme.colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
-    backgroundColor: theme.colors.surfaceAlt,
-    borderBottom: `1px solid ${theme.colors.border}`,
-    whiteSpace: 'nowrap',
-    textAlign: 'left',
-  },
-
-  moversTr: {
-    borderBottom: `1px solid ${theme.colors.border}`,
-  },
-
-  moversTd: {
-    padding: `${theme.spacing[2]} ${theme.spacing[4]}`,
-    fontSize: theme.font.size.sm,
-    color: theme.colors.textPrimary,
-    whiteSpace: 'nowrap',
-  },
-
-  tickerLink: {
-    color: theme.colors.accent,
-    fontWeight: theme.font.weight.semibold,
-    cursor: 'pointer',
-  },
+  moversTable: tableStyles.table,
+  moversTh:    tableStyles.th,
+  moversTr:    tableStyles.tr,
+  moversTd:    tableStyles.td,
+  tickerLink:  tableStyles.tickerLink,
 
 };
 
