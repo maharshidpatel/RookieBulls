@@ -26,6 +26,8 @@ import { Outlet } from 'react-router-dom';
 import TopNav from './TopNav';
 import SecondNav from './SecondNav';
 import theme from '../../styles/theme';
+import BuyPanel  from '../modals/BuyPanel';
+import SellPanel from '../modals/SellPanel';
 
 const Layout = () => {
 
@@ -131,15 +133,24 @@ const Layout = () => {
         </div>
       </main>
 
+      {/* ── Panels ──────────────────────────────────────────────────────────── */}
+      {buyPanel.open && (
+        <BuyPanel
+          ticker={buyPanel.ticker}
+          onReview={setOrderData}
+          onClose={closeAll}
+        />
+      )}
+
+      {sellPanel.open && (
+        <SellPanel
+          ticker={sellPanel.ticker}
+          onReview={setOrderData}
+          onClose={closeAll}
+        />
+      )}
+
       {/*
-       * ── Panels and modals ──────────────────────────────────────────────────
-       * Rendered here so they overlay all page content.
-       * Wired up in later sub steps:
-       *
-       * Step 6.8:
-       *   {buyPanel.open && <BuyPanel ticker={buyPanel.ticker} onReview={setOrderData} onClose={closeAll} />}
-       *   {sellPanel.open && <SellPanel ticker={sellPanel.ticker} onReview={setOrderData} onClose={closeAll} />}
-       *
        * Step 6.9:
        *   {orderData && <OrderConfirmation data={orderData} onExecuted={setExecutionData} onCancel={() => setOrderData(null)} />}
        *   {executionData && <ExecutionConfirmation data={executionData} onDone={onTradeComplete} />}

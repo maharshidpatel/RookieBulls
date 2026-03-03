@@ -31,8 +31,6 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-// useOutletContext - will be added in step 6.8
-// import { useOutletContext } from 'react-router-dom';
 import { fetchMyWallet } from '../services/wallet';
 import { fetchMyPortfolio } from '../services/portfolio';
 import theme from '../styles/theme';
@@ -41,13 +39,6 @@ import tableStyles from '../styles/tableStyles';
 const SummaryPage = () => {
     const navigate = useNavigate();
   
-  // openBuyPanel / openSellPanel — passed from Layout via Outlet context.
-  // Used by the positions table — clicking Buy or Sell on a row pre-sets
-  // the ticker in the panel.
-
-  // useOutletContext - will be added in step 6.8
-  //const { openBuyPanel, openSellPanel } = useOutletContext();
-
   const [wallet,    setWallet]    = useState(null);
   const [portfolio, setPortfolio] = useState(null);
   const [loading,   setLoading]   = useState(true);

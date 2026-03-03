@@ -45,3 +45,19 @@ export const getMarketStatus = async () => {
   const response = await axios.get('/api/market/status')
   return response.data
 }
+
+// getFullQuote(ticker)
+//
+// Calls GET /api/market/quote/:ticker
+// Returns the full quote object:
+//   { ticker, price, change, changePercent, high, low, open, prevClose, timestamp }
+//
+// Used by:
+//   BuyPanel / SellPanel — fetch current price when panel opens
+//   GetQuotePopup        — display quote data after ticker search (Step 6.10)
+//
+// Uses plain axios — market endpoints are public, no auth header needed.
+export const getFullQuote = async (ticker) => {
+  const response = await axios.get(`/api/market/quote/${ticker}`);
+  return response.data;
+};

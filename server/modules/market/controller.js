@@ -19,7 +19,7 @@
  *   Request → routes.js → controller.js → service.js → Finnhub → response
  */
 
-const { getPrice, searchTickers, isMarketOpen } = require('./service')
+const { getPrice, getQuote, searchTickers, isMarketOpen } = require('./service')
 
 // getPrice
 //
@@ -122,4 +122,37 @@ const getStatus = async (req, res, next) => {
   }
 }
 
-module.exports = { getPriceHandler, search, getStatus }
+// getQuoteHandler
+//
+// Handles: GET /api/market/quote/:ticker
+//
+// Returns the full quote object for a single ticker.
+// Used by BuyPanel, SellPanel, and GetQuotePopup.
+//
+// Example response:
+//   {
+//     ticker: 'AAPL',
+//     price: 211.26,
+//     change: -1.50,
+//     changePercent: -0.71,
+//     high: 213.00,
+//     low: 209.50,
+//     open: 210.00,
+//     prevClose: 212.76,
+//     timestamp: 1708123456
+//   }
+//
+// Errors:
+//   404 — ticker not recognized by Finnhub
+//   503 — Finnhub is unreachable
+const getQuoteHandler = async (req, res, next) => {
+  try {
+    const { ticker } = req.params
+    const quote = await getQuote(ticker)
+    res.status(200).json(quote)
+  } catch (err) {
+    next(err)
+  }
+}
+
+module.exports = { getPriceHandler, getQuoteHandler, search, getStatus }

@@ -23,7 +23,7 @@
 
 const express = require('express')
 const router = express.Router()
-const { getPriceHandler, search, getStatus } = require('./controller')
+const { getPriceHandler, getQuoteHandler, search, getStatus } = require('./controller')
 
 // GET /api/market/price/:ticker
 // Returns the current delayed price for a single ticker.
@@ -38,5 +38,10 @@ router.get('/search', search)
 // GET /api/market/status
 // Returns whether the US market is currently open or closed.
 router.get('/status', getStatus)
+
+// GET /api/market/quote/:ticker
+// Returns full quote object — price, change, changePercent, high, low, open, prevClose.
+// Used by panels and quote popup — richer than /price which returns a number only.
+router.get('/quote/:ticker', getQuoteHandler)
 
 module.exports = router
