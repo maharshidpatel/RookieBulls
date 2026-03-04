@@ -39,6 +39,7 @@ import tableStyles from '../styles/tableStyles';
 
 const HoldingsPage = () => {
   const navigate = useNavigate();
+  const { refreshKey } = useOutletContext();
 
   // openBuyPanel(ticker) / openSellPanel(ticker) — from Layout via Outlet context.
   // Passed to Buy/Sell buttons in each row so the panel opens pre-set to that ticker.
@@ -54,7 +55,7 @@ const HoldingsPage = () => {
   const [hoveredRow, setHoveredRow] = useState(null);
 
   // Button hover state — tracks which button the user is hovering.
-  // Shape: { rowIndex: number, side: 'buy'|'sell' } | null
+  // Shape: { rowIndex: number, Operation: 'buy'|'sell' } | null
   const [hoveredBtn, setHoveredBtn] = useState(null);
 
   const loadData = useCallback(async () => {
@@ -76,7 +77,7 @@ const HoldingsPage = () => {
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [loadData, refreshKey]);
 
 
   // ── Formatting helpers ───────────────────────────────────────────────────────
@@ -165,8 +166,8 @@ const HoldingsPage = () => {
               {portfolio.positions.map((position, index) => {
 
                 const isRowHovered = hoveredRow === index;
-                const isBuyHovered  = hoveredBtn?.rowIndex === index && hoveredBtn?.side === 'buy';
-                const isSellHovered = hoveredBtn?.rowIndex === index && hoveredBtn?.side === 'sell';
+                const isBuyHovered  = hoveredBtn?.rowIndex === index && hoveredBtn?.operation === 'buy';
+                const isSellHovered = hoveredBtn?.rowIndex === index && hoveredBtn?.operation === 'sell';
 
                 return (
                   <tr
@@ -247,7 +248,7 @@ const HoldingsPage = () => {
                           ...(isBuyHovered ? styles.buyBtnHover : {}), 
                         }}
                         onClick={() => openBuyPanel(position.ticker)}
-                        onMouseEnter={() => setHoveredBtn({ rowIndex: index, side: 'buy' })}
+                        onMouseEnter={() => setHoveredBtn({ rowIndex: index, operation: 'buy' })}
                         onMouseLeave={() => setHoveredBtn(null)}
                       >
                         Buy
@@ -260,7 +261,7 @@ const HoldingsPage = () => {
                           marginLeft: theme.spacing[3],
                         }}
                         onClick={() => openSellPanel(position.ticker)}
-                        onMouseEnter={() => setHoveredBtn({ rowIndex: index, side: 'sell' })}
+                        onMouseEnter={() => setHoveredBtn({ rowIndex: index, operation: 'sell' })}
                         onMouseLeave={() => setHoveredBtn(null)}
                       >
                         Sell

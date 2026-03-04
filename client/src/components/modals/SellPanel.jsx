@@ -12,7 +12,7 @@
  * Props:
  *   ticker   — string | null (same as BuyPanel)
  *   onReview — (orderData) => void
- *              orderData shape: { side, ticker, quantity, fetchedPrice }
+ *              orderData shape: { operation, ticker, quantity, fetchedPrice }
  *   onClose  — () => void
  * ─────────────────────────────────────────────────────────────────────────────
  */
@@ -88,7 +88,7 @@ const SellPanel = ({ ticker: initialTicker, onReview, onClose }) => {
   const handleReview = () => {
     if (!canReview) return;
     onReview({
-      side:         'sell',
+      operation:         'sell',
       ticker:       activeTicker,
       quantity,
       fetchedPrice: quote.price,

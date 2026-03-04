@@ -30,7 +30,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { fetchMyWallet } from '../services/wallet';
 import { fetchMyPortfolio } from '../services/portfolio';
 import theme from '../styles/theme';
@@ -38,6 +38,7 @@ import tableStyles from '../styles/tableStyles';
 
 const SummaryPage = () => {
     const navigate = useNavigate();
+    const { refreshKey } = useOutletContext();
   
   const [wallet,    setWallet]    = useState(null);
   const [portfolio, setPortfolio] = useState(null);
@@ -68,7 +69,7 @@ const SummaryPage = () => {
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [loadData, refreshKey]);
 
 
   // ── Derived values ───────────────────────────────────────────────────────────

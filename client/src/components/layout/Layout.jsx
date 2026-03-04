@@ -28,6 +28,8 @@ import SecondNav from './SecondNav';
 import theme from '../../styles/theme';
 import BuyPanel  from '../modals/BuyPanel';
 import SellPanel from '../modals/SellPanel';
+import OrderConfirmation     from '../modals/OrderConfirmation';
+import ExecutionConfirmation from '../modals/ExecutionConfirmation';
 
 const Layout = () => {
 
@@ -47,16 +49,21 @@ const Layout = () => {
   // ── Order confirmation modal ────────────────────────────────────────────────
   //
   // Populated by BuyPanel/SellPanel when the user clicks Review Order.
-  // Shape: { side: 'buy'|'sell', ticker: string, quantity: number } | null
+  // Shape: { Operation: 'buy'|'sell', ticker: string, quantity: number } | null
   //
   const [orderData, setOrderData] = useState(null);
 
   // ── Execution confirmation modal ────────────────────────────────────────────
   //
   // Populated after the trade executes successfully.
-  // Shape: { ticker, side, quantity, executedPrice, totalValue } | null
+  // Shape: { ticker, Operation, quantity, executedPrice, totalValue } | null
   //
   const [executionData, setExecutionData] = useState(null);
+
+  // refreshKey — incremented when a trade completes successfully.
+  // Pages that receive this via useOutletContext re-fetch their data
+  // when refreshKey changes. No navigation required.
+  const [refreshKey, setRefreshKey] = useState(0);
 
 
   // ── Handlers ────────────────────────────────────────────────────────────────
@@ -99,6 +106,8 @@ const Layout = () => {
   // Step 6.5+ adds a refresh trigger here so SummaryPage re-fetches wallet/portfolio.
   const onTradeComplete = () => {
     closeAll();
+    // Increment refreshKey — pages watching this will re-fetch data.
+    setRefreshKey(prev => prev + 1);
   };
 
 
@@ -125,10 +134,11 @@ const Layout = () => {
            * useOutletContext() in child pages gives access to:
            *   openBuyPanel(ticker)  — open Buy panel, optionally pre-set ticker
            *   openSellPanel(ticker) — open Sell panel, optionally pre-set ticker
+           *   refreshKey — incremented when a trade completes successfully
            *
            * This avoids prop drilling through every page component.
            */}
-          <Outlet context={{ openBuyPanel, openSellPanel }} />
+          <Outlet context={{ openBuyPanel, openSellPanel, refreshKey }} />
 
         </div>
       </main>
@@ -150,11 +160,23 @@ const Layout = () => {
         />
       )}
 
+      {/* ── Modals ──────────────────────────────────────────────────────────── */}
+      {orderData && (
+        <OrderConfirmation
+          data={orderData}
+          onExecuted={setExecutionData}
+          onCancel={() => setOrderData(null)}
+        />
+      )}
+
+      {executionData && (
+        <ExecutionConfirmation
+          data={executionData}
+          onDone={onTradeComplete}
+        />
+      )}
+
       {/*
-       * Step 6.9:
-       *   {orderData && <OrderConfirmation data={orderData} onExecuted={setExecutionData} onCancel={() => setOrderData(null)} />}
-       *   {executionData && <ExecutionConfirmation data={executionData} onDone={onTradeComplete} />}
-       *
        * Step 6.10:
        *   {quotePopupOpen && <GetQuotePopup onClose={() => setQuotePopupOpen(false)} />}
        */}

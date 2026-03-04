@@ -17,7 +17,7 @@
  *               If null: TickerSearch shown — user picks the ticker.
  *   onReview  — (orderData) => void
  *               Called when user clicks Review Order.
- *               orderData shape: { side, ticker, quantity, fetchedPrice }
+ *               orderData shape: { operation, ticker, quantity, fetchedPrice }
  *   onClose   — () => void — called on Cancel or backdrop click
  *
  * Price fetch:
@@ -99,7 +99,7 @@ const BuyPanel = ({ ticker: initialTicker, onReview, onClose }) => {
   const handleReview = () => {
     if (!canReview) return;
     onReview({
-      side:         'buy',
+      operation:         'buy',
       ticker:       activeTicker,
       quantity,
       fetchedPrice: quote.price,
