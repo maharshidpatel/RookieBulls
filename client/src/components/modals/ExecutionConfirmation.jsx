@@ -39,17 +39,13 @@ const ExecutionConfirmation = ({ data, onDone }) => {
         <div style={styles.header}>
           <div style={{
             ...styles.iconCircle,
-            backgroundColor: isBuy
-              ? theme.colors.successTint
-              : theme.colors.dangerTint,
-            borderColor: isBuy
-              ? theme.colors.success
-              : theme.colors.danger,
+            backgroundColor: theme.colors.successTint,
+            borderColor:     theme.colors.success,
           }}>
             <span style={{
               fontSize: theme.font.size['2xl'],
-              color:    isBuy ? theme.colors.success : theme.colors.danger,
-            }}>
+              color:    theme.colors.success,
+          }}>
               ✓
             </span>
           </div>
@@ -58,10 +54,7 @@ const ExecutionConfirmation = ({ data, onDone }) => {
             Order Executed
           </h2>
 
-          <p style={{
-            ...styles.subtitle,
-            color: isBuy ? theme.colors.success : theme.colors.danger,
-          }}>
+          <p style={styles.subtitle}>
             {isBuy ? 'Buy' : 'Sell'} order for {ticker} completed successfully.
           </p>
         </div>
@@ -178,6 +171,7 @@ const styles = {
 
   subtitle: {
     fontSize: theme.font.size.sm,
+    color:    theme.colors.textSecondary,
     margin:   0,
   },
 

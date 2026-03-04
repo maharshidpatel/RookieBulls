@@ -103,12 +103,9 @@ const OrderConfirmation = ({ data, onExecuted, onCancel }) => {
 
         {/* Header */}
         <div style={styles.header}>
-          <h2 style={{
-            ...styles.title,
-            color: isBuy ? theme.colors.success : theme.colors.danger,
-          }}>
-            Review {isBuy ? 'Buy' : 'Sell'} Order
-          </h2>
+          <h2 style={styles.title}>
+            Review Order
+          </h2> 
         </div>
 
         {/* Order details */}
@@ -181,14 +178,12 @@ const OrderConfirmation = ({ data, onExecuted, onCancel }) => {
           <button
             style={{
               ...styles.confirmBtn,
-              backgroundColor: isBuy ? theme.colors.success : theme.colors.danger,
-              borderColor:     isBuy ? theme.colors.success : theme.colors.danger,
               ...(executing || loadingPrice ? styles.confirmBtnDisabled : {}),
             }}
             onClick={handleConfirm}
             disabled={executing || loadingPrice}
           >
-            {executing ? 'Executing...' : `Confirm ${isBuy ? 'Buy' : 'Sell'}`}
+            {executing ? 'Executing...' : 'Confirm Order'}
           </button>
 
           <button
@@ -240,6 +235,7 @@ const styles = {
   title: {
     fontSize:   theme.font.size.lg,
     fontWeight: theme.font.weight.bold,
+    color:      theme.colors.textPrimary,
   },
 
   body: {
@@ -302,12 +298,13 @@ const styles = {
     fontSize:    theme.font.size.md,
     fontWeight:  theme.font.weight.semibold,
     color:       theme.colors.white,
+    backgroundColor: theme.colors.accent,
     borderWidth: '1px',
     borderStyle: 'solid',
+    borderColor:     theme.colors.accent,
     borderRadius: theme.radius.md,
     cursor:      'pointer',
     fontFamily:  theme.font.family,
-    transition:  `background-color ${theme.transition.fast}`,
   },
 
   confirmBtnDisabled: {

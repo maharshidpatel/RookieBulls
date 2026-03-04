@@ -30,7 +30,7 @@ import { useState, useEffect, useRef } from 'react';
 import { searchTickers } from '../services/market';
 import theme from '../styles/theme';
 
-const TickerSearch = ({ onSelect, disabled, width = '100%' }) => {
+const TickerSearch = ({ onSelect, onClear, disabled, width = '100%' }) => {
   const [query,    setQuery]    = useState('');
   const [results,  setResults]  = useState([]);
   const [isOpen,   setIsOpen]   = useState(false);
@@ -39,6 +39,7 @@ const TickerSearch = ({ onSelect, disabled, width = '100%' }) => {
   const [error,    setError]    = useState(null);
 
   const containerRef = useRef(null);
+  const inputRef = useRef(null);
 
   // Debounce — waits 300ms after last keystroke before firing search
   useEffect(() => {
@@ -89,40 +90,70 @@ const TickerSearch = ({ onSelect, disabled, width = '100%' }) => {
   const handleInputChange = (e) => {
     setQuery(e.target.value);
     setSelected(null);
+    if (!e.target.value.trim() && onClear) {
+      onClear();
+    }
   };
 
   return (
     <div ref={containerRef} style={{ ...styles.wrapper, width }}>
 
-      <div style={styles.inputWrapper}>
-        <input
-          type="text"
-          value={query}
-          onChange={handleInputChange}
-          placeholder="Search e.g. AAPL"
-          disabled={disabled}
-          style={styles.input}
-          onFocus={() => { if (results.length > 0) setIsOpen(true); }}
-          autoComplete="off"
-        />
-        {loading && <span style={styles.spinner}>...</span>}
-      </div>
+      {/* Locked state — ticker selected, show readonly display */}
+      {selected ? (
+        <div style={styles.lockedWrapper}>
+          <div style={styles.lockedDisplay}>
+            <span style={styles.lockedTicker}>{selected.ticker}</span>
+            <span style={styles.lockedCompany}>{selected.companyName}</span>
+          </div>
+          <button
+            style={styles.clearBtn}
+            onMouseDown={() => {
+              setSelected(null);
+              setQuery('');
+              setResults([]);
+              if (onClear) onClear();
+              // Focus the input after state clears on next render
+              setTimeout(() => inputRef.current?.focus(), 0);
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
+        /* Search state — no ticker selected yet */
+        <>
+          <div style={styles.inputWrapper}>
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={handleInputChange}
+              placeholder="Search e.g. AAPL"
+              disabled={disabled}
+              style={styles.input}
+              onFocus={() => { if (results.length > 0) setIsOpen(true); }}
+              autoComplete="off"
+            />
+            {loading && <span style={styles.spinner}>...</span>}
+          </div>
 
-      {error && <p style={styles.error}>{error}</p>}
+          {error && <p style={styles.error}>{error}</p>}
 
-      {isOpen && results.length > 0 && (
-        <ul style={styles.dropdown}>
-          {results.map((result) => (
-            <li
-              key={result.ticker}
-              style={styles.dropdownItem}
-              onMouseDown={() => handleSelect(result)}
-            >
-              <span style={styles.ticker}>{result.ticker}</span>
-              <span style={styles.companyName}>{result.companyName}</span>
-            </li>
-          ))}
-        </ul>
+          {isOpen && results.length > 0 && (
+            <ul style={styles.dropdown}>
+              {results.map((result) => (
+                <li
+                  key={result.ticker}
+                  style={styles.dropdownItem}
+                  onMouseDown={() => handleSelect(result)}
+                >
+                  <span style={styles.ticker}>{result.ticker}</span>
+                  <span style={styles.companyName}>{result.companyName}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
 
     </div>
@@ -212,6 +243,58 @@ const styles = {
     fontSize: theme.font.size.xs,
     margin:   0,
   },
+
+    lockedWrapper: {
+    display:         'flex',
+    alignItems:      'center',
+    gap:             theme.spacing[2],
+  },
+
+  lockedDisplay: {
+    flex:            1,
+    height:          theme.ui.inputHeight,
+    padding:         `0 ${theme.spacing[3]}`,
+    display:         'flex',
+    alignItems:      'center',
+    gap:             theme.spacing[2],
+    backgroundColor: theme.colors.surfaceAlt,
+    borderWidth:     '1px',
+    borderStyle:     'solid',
+    borderColor:     theme.colors.accent,
+    borderRadius:    theme.radius.md,
+  },
+
+  lockedTicker: {
+    fontSize:   theme.font.size.sm,
+    fontWeight: theme.font.weight.bold,
+    color:      theme.colors.textPrimary,
+  },
+
+  lockedCompany: {
+    fontSize:     theme.font.size.xs,
+    color:        theme.colors.textMuted,
+    whiteSpace:   'nowrap',
+    overflow:     'hidden',
+    textOverflow: 'ellipsis',
+  },
+
+  clearBtn: {
+    width:           theme.ui.inputHeight,
+    height:          theme.ui.inputHeight,
+    flexShrink:      0,
+    fontSize:        theme.font.size.sm,
+    color:           theme.colors.textMuted,
+    backgroundColor: theme.colors.surfaceAlt,
+    borderWidth:     '1px',
+    borderStyle:     'solid',
+    borderColor:     theme.colors.border,
+    borderRadius:    theme.radius.md,
+    cursor:          'pointer',
+    display:         'flex',
+    alignItems:      'center',
+    justifyContent:  'center',
+  },
+
 };
 
 export default TickerSearch;

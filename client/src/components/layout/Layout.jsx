@@ -15,7 +15,7 @@
  *   Child pages access openBuyPanel / openSellPanel via useOutletContext().
  *
  * Panel and modal rendering:
- *   Step 6.8  — BuyPanel, SellPanel rendered here
+ *   Step 6.8  — TradePanel rendered here (replaces BuyPanel, SellPanel)
  *   Step 6.9  — OrderConfirmation, ExecutionConfirmation rendered here
  *   Step 6.10 — GetQuotePopup rendered here
  * ─────────────────────────────────────────────────────────────────────────────
@@ -26,10 +26,10 @@ import { Outlet } from 'react-router-dom';
 import TopNav from './TopNav';
 import SecondNav from './SecondNav';
 import theme from '../../styles/theme';
-import BuyPanel  from '../modals/BuyPanel';
-import SellPanel from '../modals/SellPanel';
+import TradePanel from '../modals/TradePanel';
 import OrderConfirmation     from '../modals/OrderConfirmation';
 import ExecutionConfirmation from '../modals/ExecutionConfirmation';
+import GetQuotePopup from '../modals/GetQuotePopup';
 
 const Layout = () => {
 
@@ -49,14 +49,14 @@ const Layout = () => {
   // ── Order confirmation modal ────────────────────────────────────────────────
   //
   // Populated by BuyPanel/SellPanel when the user clicks Review Order.
-  // Shape: { Operation: 'buy'|'sell', ticker: string, quantity: number } | null
+  // Shape: { operation: 'buy'|'sell', ticker: string, quantity: number } | null
   //
   const [orderData, setOrderData] = useState(null);
 
   // ── Execution confirmation modal ────────────────────────────────────────────
   //
   // Populated after the trade executes successfully.
-  // Shape: { ticker, Operation, quantity, executedPrice, totalValue } | null
+  // Shape: { ticker, operation, quantity, executedPrice, totalValue } | null
   //
   const [executionData, setExecutionData] = useState(null);
 
@@ -144,17 +144,10 @@ const Layout = () => {
       </main>
 
       {/* ── Panels ──────────────────────────────────────────────────────────── */}
-      {buyPanel.open && (
-        <BuyPanel
-          ticker={buyPanel.ticker}
-          onReview={setOrderData}
-          onClose={closeAll}
-        />
-      )}
-
-      {sellPanel.open && (
-        <SellPanel
-          ticker={sellPanel.ticker}
+      {(buyPanel.open || sellPanel.open) && (
+        <TradePanel
+          initialOperation={buyPanel.open ? 'buy' : 'sell'}
+          ticker={buyPanel.open ? buyPanel.ticker : sellPanel.ticker}
           onReview={setOrderData}
           onClose={closeAll}
         />
@@ -176,10 +169,11 @@ const Layout = () => {
         />
       )}
 
-      {/*
-       * Step 6.10:
-       *   {quotePopupOpen && <GetQuotePopup onClose={() => setQuotePopupOpen(false)} />}
-       */}
+      {quotePopupOpen && (
+        <GetQuotePopup
+          onClose={() => setQuotePopupOpen(false)}
+        />
+      )}
 
     </div>
   );

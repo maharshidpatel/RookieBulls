@@ -1,105 +1,109 @@
 /*
- * BuyPanel.jsx
+ * TradePanel.jsx
  * ─────────────────────────────────────────────────────────────────────────────
  * Responsibility:
- *   Slide-in side panel for entering a buy order.
- *   Fetches the current price on open.
- *   Calls onReview() with order data when user clicks Review Order.
- *   Calls onClose() when user cancels.
+ *   Slide-in side panel for entering a buy or sell order.
+ *   Replaces BuyPanel.jsx and SellPanel.jsx.
+ *
+ *   Operation dropdown at the top allows switching between Buy and Sell
+ *   without closing and reopening the panel.
  *
  * Does NOT belong here:
- *   Trade execution (belongs in OrderConfirmation via Layout).
- *   Wallet data (available cash fetched fresh here via prop or context).
+ *   Trade execution (belongs in OrderConfirmation).
+ *   Wallet or portfolio calculations.
  *
  * Props:
- *   ticker    — string | null
- *               If set: input is readonly, panel pre-loaded for this stock.
- *               If null: TickerSearch shown — user picks the ticker.
- *   onReview  — (orderData) => void
- *               Called when user clicks Review Order.
- *               orderData shape: { operation, ticker, quantity, fetchedPrice }
- *   onClose   — () => void — called on Cancel or backdrop click
- *
- * Price fetch:
- *   getFullQuote() is called on mount (or when ticker changes).
- *   The fetched price is shown as "Current Market Price".
- *   It is passed to onReview() so OrderConfirmation can re-fetch
- *   and compare — price may change between panel open and review.
- *
- * Available cash:
- *   Fetched fresh on mount via fetchMyWallet().
- *   Shows the user how much they can spend before committing.
+ *   initialOperation — 'buy' | 'sell' — sets the dropdown default
+ *   ticker           — string | null
+ *                      If set: ticker field is readonly.
+ *                      If null: TickerSearch shown.
+ *   onReview         — (orderData) => void
+ *                      orderData: { operation, ticker, quantity, fetchedPrice }
+ *   onClose          — () => void
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import { useState, useEffect } from 'react';
 import { getFullQuote } from '../../services/market';
 import { fetchMyWallet } from '../../services/wallet';
+import { fetchMyPortfolio } from '../../services/portfolio';
 import TickerSearch from '../TickerSearch';
 import theme from '../../styles/theme';
 
-const BuyPanel = ({ ticker: initialTicker, onReview, onClose }) => {
+const TradePanel = ({ initialOperation = 'buy', ticker: initialTicker, onReview, onClose }) => {
 
-  // activeTicker — the ticker currently loaded in the panel.
-  // Starts as initialTicker (may be null if opened from SecondNav).
-  const [activeTicker,  setActiveTicker]  = useState(initialTicker || null);
+  const [operation,       setOperation]       = useState(initialOperation);
+  const [activeTicker,    setActiveTicker]    = useState(initialTicker || null);
+  const [quantity,        setQuantity]        = useState(1);
+  const [quantityInput,   setQuantityInput]   = useState('1');
+  const [quote,           setQuote]           = useState(null);
+  const [walletBalance,   setWalletBalance]   = useState(null);
+  const [availableShares, setAvailableShares] = useState(null);
+  const [loadingPrice,    setLoadingPrice]    = useState(false);
+  const [priceError,      setPriceError]      = useState(null);
+  const [hovered,         setHovered]         = useState(null);
 
-  const [quantity,      setQuantity]      = useState(1);
-  const [quantityInput, setQuantityInput] = useState('1');
-  const [quote,         setQuote]         = useState(null);
-  const [walletBalance, setWalletBalance] = useState(null);
-  const [loadingPrice,  setLoadingPrice]  = useState(false);
-  const [priceError,    setPriceError]    = useState(null);
+  const isBuy = operation === 'buy';
 
-  // Fetch price and wallet whenever activeTicker changes
+  // Fetch price + relevant context data when ticker or operation changes
   useEffect(() => {
     if (!activeTicker) return;
 
-    // Clear previous ticker's data immediately — prevents stale
-    // price or error from showing while new fetch is in flight.
     setQuote(null);
     setPriceError(null);
 
     const load = async () => {
       setLoadingPrice(true);
-      setPriceError(null);
       try {
-        const [quoteData, walletData] = await Promise.all([
-          getFullQuote(activeTicker),
-          fetchMyWallet(),
-        ]);
-        setQuote(quoteData);
-        setWalletBalance(walletData.balance);
+        if (operation === 'buy') {
+          const [quoteData, walletData] = await Promise.all([
+            getFullQuote(activeTicker),
+            fetchMyWallet(),
+          ]);
+          setQuote(quoteData);
+          setWalletBalance(walletData.balance);
+          setAvailableShares(null);
+        } else {
+          const [quoteData, portfolioData] = await Promise.all([
+            getFullQuote(activeTicker),
+            fetchMyPortfolio(),
+          ]);
+          setQuote(quoteData);
+          const position = portfolioData.positions.find(
+            (p) => p.ticker === activeTicker
+          );
+          setAvailableShares(position ? position.quantity : 0);
+          setWalletBalance(null);
+        }
       } catch {
-        setPriceError('Unable to fetch price. Please try again.');
+        setPriceError('Unable to fetch data. Please try again.');
       } finally {
         setLoadingPrice(false);
       }
     };
 
     load();
-  }, [activeTicker]);
+  }, [activeTicker, operation]);
 
-  // Reset quantity to 1 when ticker changes
+  // Reset quantity when ticker or operation changes
   useEffect(() => {
     setQuantity(1);
     setQuantityInput('1');
-  }, [activeTicker]);
-
+  }, [activeTicker, operation]);
 
   const estimatedTotal = quote ? quote.price * quantity : null;
 
-  const canReview =
-    activeTicker &&
-    quote &&
-    quantity > 0 &&
-    walletBalance !== null &&
-    estimatedTotal <= walletBalance;
+  const canReview = isBuy
+    ? activeTicker && quote && quantity > 0 &&
+      walletBalance !== null && estimatedTotal <= walletBalance
+    : activeTicker && quote && quantity > 0 &&
+      availableShares !== null && availableShares > 0 &&
+      quantity <= availableShares;
 
   const handleReview = () => {
     if (!canReview) return;
     onReview({
-      operation:         'buy',
+      operation,
       ticker:       activeTicker,
       quantity,
       fetchedPrice: quote.price,
@@ -113,37 +117,51 @@ const BuyPanel = ({ ticker: initialTicker, onReview, onClose }) => {
       minimumFractionDigits: 2,
     }).format(value);
 
-
   return (
     <>
-      {/* Backdrop — click to close */}
       <div style={styles.backdrop} onClick={onClose} />
 
-      {/* Panel */}
       <div style={styles.panel}>
 
         {/* Header */}
         <div style={styles.header}>
-          <h2 style={styles.title}>Buy</h2>
+          <h2 style={styles.title}>Trade</h2>
           <button style={styles.closeBtn} onClick={onClose}>✕</button>
         </div>
 
         <div style={styles.body}>
 
-          {/* Ticker — readonly if pre-set, searchable if not */}
+          {/* Operation dropdown — top of panel */}
+          <div style={styles.field}>
+            <label style={styles.label}>Operation</label>
+            <select
+              value={operation}
+              onChange={(e) => setOperation(e.target.value)}
+              style={styles.select}
+            >
+              <option value="buy">Buy</option>
+              <option value="sell">Sell</option>
+            </select>
+          </div>
+
+          {/* Ticker */}
           <div style={styles.field}>
             <label style={styles.label}>Symbol</label>
             {initialTicker ? (
-              <div style={styles.readonlyTicker}>{initialTicker}</div>
+              <div style={styles.readonlyTicker}>
+                {initialTicker}
+                <span style={styles.readonlyHint}>Selected from holdings</span>
+              </div>
             ) : (
               <TickerSearch
                 width="100%"
                 onSelect={(result) => setActiveTicker(result.ticker)}
+                onClear={() => setActiveTicker(null)}
               />
             )}
           </div>
 
-          {/* Price type — display only */}
+          {/* Order type */}
           <div style={styles.field}>
             <label style={styles.label}>Order Type</label>
             <div style={styles.readonlyValue}>At Market</div>
@@ -177,7 +195,6 @@ const BuyPanel = ({ ticker: initialTicker, onReview, onClose }) => {
                   if (!isNaN(val) && val > 0) setQuantity(val);
                 }}
                 onBlur={() => {
-                  // On blur — if field is empty or invalid, reset to 1
                   if (!quantityInput || parseInt(quantityInput, 10) < 1) {
                     setQuantity(1);
                     setQuantityInput('1');
@@ -198,11 +215,11 @@ const BuyPanel = ({ ticker: initialTicker, onReview, onClose }) => {
             </div>
           </div>
 
-          {/* Price info — shown once quote is loaded */}
+          {/* Info card — price and context data */}
           {activeTicker && (
             <div style={styles.infoCard}>
               {loadingPrice && (
-                <p style={styles.infoLoading}>Fetching price...</p>
+                <p style={styles.infoLoading}>Fetching data...</p>
               )}
               {priceError && (
                 <p style={styles.infoError}>{priceError}</p>
@@ -221,7 +238,7 @@ const BuyPanel = ({ ticker: initialTicker, onReview, onClose }) => {
                     <span style={{
                       ...styles.infoValue,
                       fontWeight: theme.font.weight.bold,
-                      color: theme.colors.textPrimary,
+                      color:      theme.colors.textPrimary,
                     }}>
                       {formatCurrency(estimatedTotal)}
                     </span>
@@ -229,25 +246,56 @@ const BuyPanel = ({ ticker: initialTicker, onReview, onClose }) => {
 
                   <div style={styles.infoDivider} />
 
-                  <div style={styles.infoRow}>
-                    <span style={styles.infoLabel}>Available Cash</span>
-                    <span style={{
-                      ...styles.infoValue,
-                      color: estimatedTotal > walletBalance
-                        ? theme.colors.danger
-                        : theme.colors.textPrimary,
-                    }}>
-                      {walletBalance !== null
-                        ? formatCurrency(walletBalance)
-                        : '...'}
-                    </span>
-                  </div>
+                  {/* Buy context — available cash */}
+                  {isBuy && (
+                    <>
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>Available Cash</span>
+                        <span style={{
+                          ...styles.infoValue,
+                          color: estimatedTotal > walletBalance
+                            ? theme.colors.danger
+                            : theme.colors.textPrimary,
+                        }}>
+                          {walletBalance !== null
+                            ? formatCurrency(walletBalance)
+                            : '...'}
+                        </span>
+                      </div>
+                      {estimatedTotal > walletBalance && (
+                        <p style={styles.warning}>
+                          Insufficient funds for this order.
+                        </p>
+                      )}
+                    </>
+                  )}
 
-                  {/* Insufficient funds warning */}
-                  {estimatedTotal > walletBalance && (
-                    <p style={styles.insufficientWarning}>
-                      Insufficient funds for this order.
-                    </p>
+                  {/* Sell context — available shares */}
+                  {!isBuy && (
+                    <>
+                      <div style={styles.infoRow}>
+                        <span style={styles.infoLabel}>Available Quantity</span>
+                        <span style={{
+                          ...styles.infoValue,
+                          color: quantity > availableShares
+                            ? theme.colors.danger
+                            : theme.colors.textPrimary,
+                        }}>
+                          {availableShares !== null ? availableShares : '...'}
+                        </span>
+                      </div>
+                      {availableShares === 0 && (
+                        <p style={styles.warning}>
+                          You do not hold any shares of {activeTicker}.
+                        </p>
+                      )}
+                      {availableShares > 0 && quantity > availableShares && (
+                        <p style={styles.warning}>
+                          You only hold {availableShares}{' '}
+                          {availableShares === 1 ? 'share' : 'shares'}.
+                        </p>
+                      )}
+                    </>
                   )}
                 </>
               )}
@@ -256,19 +304,30 @@ const BuyPanel = ({ ticker: initialTicker, onReview, onClose }) => {
 
         </div>
 
-        {/* Footer — action buttons */}
+        {/* Footer */}
         <div style={styles.footer}>
           <button
             style={{
               ...styles.reviewBtn,
               ...(!canReview ? styles.reviewBtnDisabled : {}),
+              ...(hovered === 'review' && canReview ? styles.reviewBtnHover : {}),
             }}
             onClick={handleReview}
             disabled={!canReview}
+            onMouseEnter={() => setHovered('review')}
+            onMouseLeave={() => setHovered(null)}
           >
             Review Order
           </button>
-          <button style={styles.cancelBtn} onClick={onClose}>
+          <button
+            style={{
+              ...styles.cancelBtn,
+              ...(hovered === 'cancel' ? styles.cancelBtnHover : {}),
+            }}
+            onClick={onClose}
+            onMouseEnter={() => setHovered('cancel')}
+            onMouseLeave={() => setHovered(null)}
+          >
             Cancel
           </button>
         </div>
@@ -282,8 +341,6 @@ const BuyPanel = ({ ticker: initialTicker, onReview, onClose }) => {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = {
-
-  // Backdrop — full screen overlay behind panel
   backdrop: {
     position:        'fixed',
     inset:           0,
@@ -291,7 +348,6 @@ const styles = {
     zIndex:          150,
   },
 
-  // Panel — slides in from right, sits above backdrop
   panel: {
     position:        'fixed',
     top:             0,
@@ -317,17 +373,17 @@ const styles = {
   title: {
     fontSize:   theme.font.size.lg,
     fontWeight: theme.font.weight.bold,
-    color:      theme.colors.success,
+    color:      theme.colors.textPrimary,
   },
 
   closeBtn: {
-    fontSize:        theme.font.size.md,
-    color:           theme.colors.textMuted,
-    background:      'none',
-    border:          'none',
-    cursor:          'pointer',
-    padding:         theme.spacing[1],
-    lineHeight:      1,
+    fontSize:   theme.font.size.md,
+    color:      theme.colors.textMuted,
+    background: 'none',
+    border:     'none',
+    cursor:     'pointer',
+    padding:    theme.spacing[1],
+    lineHeight: 1,
   },
 
   body: {
@@ -346,11 +402,28 @@ const styles = {
   },
 
   label: {
-    fontSize:   theme.font.size.xs,
-    fontWeight: theme.font.weight.semibold,
-    color:      theme.colors.textSecondary,
+    fontSize:      theme.font.size.xs,
+    fontWeight:    theme.font.weight.semibold,
+    color:         theme.colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: '0.05em',
+  },
+
+  // Operation dropdown
+  select: {
+    height:          theme.ui.inputHeight,
+    padding:         `0 ${theme.spacing[3]}`,
+    fontSize:        theme.font.size.sm,
+    fontWeight:      theme.font.weight.medium,
+    color:           theme.colors.textPrimary,
+    backgroundColor: theme.colors.surface,
+    borderWidth:     '1px',
+    borderStyle:     'solid',
+    borderColor:     theme.colors.border,
+    borderRadius:    theme.radius.md,
+    cursor:          'pointer',
+    outline:         'none',
+    fontFamily:      theme.font.family,
   },
 
   readonlyTicker: {
@@ -366,6 +439,13 @@ const styles = {
     borderStyle:     'solid',
     borderColor:     theme.colors.border,
     borderRadius:    theme.radius.md,
+  },
+
+  readonlyHint: {
+    fontSize:   theme.font.size.xs,
+    color:      theme.colors.textMuted,
+    fontWeight: theme.font.weight.normal,
+    marginLeft: theme.spacing[2],
   },
 
   readonlyValue: {
@@ -387,7 +467,6 @@ const styles = {
     color:    theme.colors.textMuted,
   },
 
-  // Quantity row — minus button, input, plus button
   quantityRow: {
     display: 'flex',
     gap:     theme.spacing[2],
@@ -427,7 +506,6 @@ const styles = {
     fontFamily:      theme.font.family,
   },
 
-  // Info card — price, estimated total, available cash
   infoCard: {
     backgroundColor: theme.colors.surfaceAlt,
     borderRadius:    theme.radius.md,
@@ -472,13 +550,12 @@ const styles = {
     backgroundColor: theme.colors.border,
   },
 
-  insufficientWarning: {
+  warning: {
     fontSize: theme.font.size.xs,
     color:    theme.colors.danger,
     margin:   0,
   },
 
-  // Footer — Review Order + Cancel
   footer: {
     padding:       `${theme.spacing[4]} ${theme.spacing[6]}`,
     borderTop:     `1px solid ${theme.colors.border}`,
@@ -487,19 +564,25 @@ const styles = {
     gap:           theme.spacing[2],
   },
 
+  // Review Order — neutral accent, no green/red
   reviewBtn: {
     height:          '44px',
     fontSize:        theme.font.size.md,
     fontWeight:      theme.font.weight.semibold,
     color:           theme.colors.white,
-    backgroundColor: theme.colors.success,
+    backgroundColor: theme.colors.accent,
     borderWidth:     '1px',
     borderStyle:     'solid',
-    borderColor:     theme.colors.success,
+    borderColor:     theme.colors.accent,
     borderRadius:    theme.radius.md,
     cursor:          'pointer',
-    transition:      `background-color ${theme.transition.fast}`,
     fontFamily:      theme.font.family,
+    transition:      `background-color ${theme.transition.fast}`,
+  },
+
+  reviewBtnHover: {
+    backgroundColor: theme.colors.accentHover ?? theme.colors.accent,
+    borderColor:     theme.colors.accentHover ?? theme.colors.accent,
   },
 
   reviewBtnDisabled: {
@@ -522,6 +605,10 @@ const styles = {
     cursor:          'pointer',
     fontFamily:      theme.font.family,
   },
+
+  cancelBtnHover: {
+    backgroundColor: theme.colors.surfaceAlt,
+  },
 };
 
-export default BuyPanel;
+export default TradePanel;
