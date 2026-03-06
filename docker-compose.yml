@@ -2,7 +2,13 @@
 #
 # Defines the containers that run supporting services for Rookie Bulls.
 # Your Node.js server runs outside Docker during development.
-# Only the database and its admin UI run inside Docker.
+# Only the database, cache, and their admin UIs run inside Docker.
+#
+# Services:
+#   mongo           — MongoDB database (port 27017)
+#   mongo-express   — MongoDB admin UI (port 8081)
+#   redis           — Redis cache (port 6379)       ← added MR.1
+#   redisinsight    — Redis admin UI (port 8001)    ← added MR.1
 #
 # Commands:
 #   Start containers:   docker compose up -d
@@ -58,8 +64,43 @@ services:
       # MongoDB is ready and fails
       - mongo
 
+  redis:
+    # Official Redis image version 7, alpine variant
+    # alpine = minimal Linux base image (~5MB vs ~30MB for full image)
+    # Functionally identical for this use case — just smaller
+    image: redis:7-alpine
+    container_name: stocksim-redis
+    restart: unless-stopped
+    ports:
+      # Maps container port 6379 to your machine port 6379
+      # Your Node.js server connects via localhost:6379
+      - "6379:6379"
+    volumes:
+      # Named volume persists cached keys across container restarts
+      # This is optional for a cache but useful in development:
+      # your Redis keys survive a docker compose down / up cycle
+      # so you can inspect them without waiting for the worker to refill
+      - redis-data:/data
+
+  redisinsight:
+    # Official Redis browser UI for inspecting keys, values, and TTLs
+    # Access at http://localhost:8001
+    # Use this to verify that price:AAPL, quote:AAPL, etc. appear
+    # after the background worker runs in MR.8
+    image: redis/redisinsight:latest
+    container_name: stocksim-redisinsight
+    restart: unless-stopped
+    ports:
+      - "8001:5540"
+      # RedisInsight listens on internal port 5540
+      # We map it to 8001 on your machine for a clean local URL
+    depends_on:
+      # Ensures Redis starts before RedisInsight attempts to connect
+      - redis
+
 # Named volumes are managed by Docker
 # Data persists in a Docker-managed location on your machine
 # Not inside your project folder
 volumes:
   mongo-data:
+  redis-data:

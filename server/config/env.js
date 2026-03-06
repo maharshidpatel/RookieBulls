@@ -11,7 +11,7 @@
  *
  * Rule: Every part of the app that needs a config value
  * imports it from here, not directly from process.env
- * 
+ *
  * Loads all variables from .env into process.env via dotenv.
  * Validates that required variables are present at startup.
  *
@@ -37,17 +37,12 @@ const required = [
   'JWT_REFRESH_EXPIRY',
   'CLIENT_ORIGIN',
 
-  // The server must have a Finnhub API key to fetch stock prices.
-  // If this is missing, market/service.js cannot call Finnhub and
-  // the entire trade engine breaks silently. Fail at startup instead.
-  'FINNHUB_API_KEY',
-
-  // BYPASS_MARKET_HOURS is intentionally not in this required list.
-  // Reason: it is an optional development flag, not a secret or credential.
-  // If it is absent from .env, market/service.js treats it as false,
-  // which is the correct safe default (market hours enforced).
-  // Making it required would force every developer to add it manually,
-  // which adds friction for no safety benefit.
+  // Redis connection string — required because the market module
+  // depends on Redis for caching prices, quotes, candles, and profiles.
+  // The background price updater worker also writes to Redis on every tick.
+  // If Redis is unreachable at startup, the server refuses to start
+  // rather than serving stale or missing market data silently.
+  'REDIS_URL',
 ]
 
 const missing = required.filter(key => !process.env[key])
@@ -67,17 +62,18 @@ const env = {
   JWT_REFRESH_EXPIRY: process.env.JWT_REFRESH_EXPIRY,
   CLIENT_ORIGIN: process.env.CLIENT_ORIGIN,
 
-  // Finnhub API key — used exclusively inside market/service.js.
+  // Redis URL — used exclusively inside market/cache/redisClient.js.
   // No other file reads this value directly.
-  FINNHUB_API_KEY: process.env.FINNHUB_API_KEY,
+  REDIS_URL: process.env.REDIS_URL,
 
-  // Development bypass flag for market hours enforcement.
-  // process.env always returns a string, never a boolean.
-  // The string 'true' is compared explicitly so that any other value
-  // ('false', '', undefined) resolves to false — the safe default.
-  // This means if the variable is missing from .env entirely,
-  // BYPASS_MARKET_HOURS is false and market hours are enforced.
-  BYPASS_MARKET_HOURS: process.env.BYPASS_MARKET_HOURS === 'true',
-};
+  // NODE_ENV replaces the old BYPASS_MARKET_HOURS flag.
+  // Previously a separate .env variable controlled the bypass,
+  // which meant it could accidentally be left on in production.
+  // Now the rule is simple:
+  //   NODE_ENV=development  →  market hours check always returns true
+  //   NODE_ENV=production   →  real market hours calculation applies
+  // One variable, no separate flag, cannot accidentally deploy with bypass on.
+  // marketHours.js reads env.NODE_ENV directly to apply this logic.
+}
 
-module.exports = { env };
+module.exports = { env }

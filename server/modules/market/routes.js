@@ -6,9 +6,12 @@
  *   Maps incoming HTTP requests to the correct controller function.
  *
  * ROUTES:
- *   GET /api/market/price/:ticker   — single stock price lookup
- *   GET /api/market/search?q=query  — ticker symbol search
- *   GET /api/market/status          — market open or closed
+ *   GET /api/market/price/:ticker    — single stock price lookup
+ *   GET /api/market/search?q=query   — ticker symbol search
+ *   GET /api/market/status           — market open or closed
+ *   GET /api/market/quote/:ticker    — full quote object
+ *   GET /api/market/profile/:ticker  — company profile from SEC EDGAR
+ *   GET /api/market/candles/:ticker  — 90-day daily OHLCV candle data
  *
  * WHY NO AUTH MIDDLEWARE:
  *   Stock prices and market status are public information.
@@ -23,16 +26,21 @@
 
 const express = require('express')
 const router = express.Router()
-const { getPriceHandler, getQuoteHandler, search, getStatus } = require('./controller')
+const {
+  getPriceHandler,
+  getQuoteHandler,
+  search,
+  getStatus,
+  getProfileHandler,
+  getCandlesHandler,
+} = require('./controller')
 
 // GET /api/market/price/:ticker
 // Returns the current delayed price for a single ticker.
-// :ticker is a URL parameter — it becomes req.params.ticker in the controller.
 router.get('/price/:ticker', getPriceHandler)
 
 // GET /api/market/search?q=query
 // Returns a list of matching US-listed common stocks.
-// ?q= is a query string parameter — it becomes req.query.q in the controller.
 router.get('/search', search)
 
 // GET /api/market/status
@@ -41,7 +49,16 @@ router.get('/status', getStatus)
 
 // GET /api/market/quote/:ticker
 // Returns full quote object — price, change, changePercent, high, low, open, prevClose.
-// Used by panels and quote popup — richer than /price which returns a number only.
 router.get('/quote/:ticker', getQuoteHandler)
+
+// GET /api/market/profile/:ticker
+// Returns company profile from SEC EDGAR — name, exchange, industry, description.
+// Used by the Quote page to display company details alongside the price chart.
+router.get('/profile/:ticker', getProfileHandler)
+
+// GET /api/market/candles/:ticker
+// Returns 90 days of daily OHLCV candle data from Stooq.
+// Used by the Quote page chart.
+router.get('/candles/:ticker', getCandlesHandler)
 
 module.exports = router

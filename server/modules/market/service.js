@@ -1,298 +1,240 @@
-/*
- * market/service.js
- * ─────────────────────────────────────────────────────────────────────────────
- * PURPOSE:
- *   The single point of contact between this application and the external
- *   market data provider (Finnhub).
+/**
+ * market/service.js — Market Data Service
  *
- *   Every module that needs a stock price calls getPrice(ticker) here.
- *   No other file in the project knows that Finnhub exists.
+ * Responsibility:
+ *  The single point of contact between the rest of the application
+ *  and all external market data sources.
+ *
+ *  Every module that needs a stock price, quote, profile, or candles
+ *  calls this service. No other file in the project knows that Stooq,
+ *  SEC EDGAR, or Redis exist.
  *
  * THE MIDDLEMAN PATTERN:
- *   Frontend / Trade Service / Portfolio Service
+ *   Trade Service / Portfolio Service / Controllers
  *                 │
  *                 ▼
- *       market/service.js        ← only file that knows about Finnhub
+ *       market/service.js        ← only file that knows about providers
  *                 │
- *                 ▼
- *            Finnhub API
+ *          ┌──────┴──────┐
+ *          ▼             ▼
+ *        Redis       stooqProvider / secProvider / marketHours / tickerSearch
+ *                        │
+ *                        ▼
+ *               Stooq / SEC EDGAR / date.nager.at
  *
- *   If Finnhub is replaced with another provider in the future,
- *   this is the only file that changes. Nothing else in the project
- *   is affected.
+ *  Redis is checked first on every external call.
+ *  Providers are only called on a cache miss.
+ *  Results are stored in Redis before being returned.
  *
- * WHAT CHANGED FROM MVP:
- *   - MOCK_PRICES hardcoded map removed
- *   - getSupportedTickers() removed (replaced by searchTickers() in Step 5.3)
- *   - getPrice() is now async — it makes a real HTTP call to Finnhub
- *   - searchTickers() added — Step 5.3
- *   - isMarketOpen() added — Step 5.4
+ * WHAT CHANGED FROM PREVIOUS VERSION:
+ *  - Finnhub removed entirely
+ *  - getPrice()    → Redis check → stooqProvider.getPrice()
+ *  - getQuote()    → Redis check → stooqProvider.getPrice()
+ *  - searchTickers() → delegates to tickerSearch (in-memory, no API call)
+ *  - isMarketOpen()  → delegates to marketHours (local calculation)
+ *  - getStockProfile() → Redis check → secProvider.getStockProfile() (new)
+ *  - getCandles()      → Redis check → stooqProvider.getHistorical()   (new)
  *
  * WHAT DOES NOT BELONG HERE:
- *   - Buy or sell logic
- *   - Wallet operations
- *   - HTTP request or response handling (req/res)
- *   - Any business logic beyond fetching and returning market data
+ *  - Buy or sell logic
+ *  - Wallet operations
+ *  - HTTP request or response handling (req/res)
+ *  - Direct axios calls — those belong in the provider files
  */
 
-const axios = require('axios')
-const { env } = require('../../config/env')
+const { get, set } = require('./cache/redisClient')
+const stooq = require('./providers/stooqProvider')
+const { isMarketOpen: calcMarketOpen } = require('./utils/marketHours')
+const { searchTickers: searchInMemory } = require('./utils/tickerSearch')
 
-// FINNHUB_BASE_URL is the root URL for all Finnhub API calls.
-// Defined once here so that if Finnhub changes their URL structure,
-// there is a single place to update it.
-const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1'
+// TTL constants — how long each key type lives in Redis
+// These are defined here so they are visible alongside the logic that uses them
+const TTL_PRICE = 90        // 90 seconds — worker refreshes every 60s, 30s buffer
+const TTL_CANDLES = 60 * 60 // 1 hour — daily candle data does not change intraday
+const TTL_PROFILE = 60 * 60 * 24 // 24 hours — company profiles rarely change
 
-// getPrice(ticker)
+// ── getPrice(ticker) ──────────────────────────────────────────────────────
 //
-// Accepts a ticker string (e.g. 'AAPL').
-// Returns the current delayed price as a number (e.g. 175.50).
+// Returns the current delayed price as a number (e.g. 182.10).
+// Used by trade/service.js to price buy and sell orders,
+// and by portfolio/service.js to calculate market value.
 //
-// How it works:
-//   1. Normalizes ticker to uppercase so 'aapl' and 'AAPL' behave identically
-//   2. Calls Finnhub's quote endpoint: GET /quote?symbol=AAPL&token=...
-//   3. Finnhub returns an object — we read the 'c' field (current price)
-//   4. If 'c' is 0 or missing, the ticker is not recognized by Finnhub
-//      (Finnhub returns { c: 0, ... } for unknown symbols, not an error)
-//   5. If the Finnhub call itself fails (network, outage), throws 503
+// Flow:
+//  1. Check Redis for key: price:TICKER
+//  2. Cache hit  → return cached number immediately
+//  3. Cache miss → call stooqProvider.getPrice()
+//               → store result in Redis with 90s TTL
+//               → return number
 //
-// Why async:
-//   This function now makes a real HTTP request to an external server.
-//   HTTP calls take time and can fail. async/await lets the rest of the
-//   application wait for the result without blocking the entire server.
-//   Every caller of getPrice() must use await.
+// Why a separate price key alongside the quote key:
+//  trade/service.js and portfolio/service.js only need a number.
+//  Storing price separately avoids parsing the full quote JSON
+//  object every time only a number is needed.
 const getPrice = async (ticker) => {
   const normalized = ticker.toUpperCase()
+  const cacheKey = `price:${normalized}`
 
-  try {
-    const response = await axios.get(`${FINNHUB_BASE_URL}/quote`, {
-      params: {
-        symbol: normalized,
-        token: env.FINNHUB_API_KEY,
-      },
-    })
-
-    const price = response.data.c
-
-    if (!price || price === 0) {
-      const err = new Error(`Ticker '${normalized}' was not found or has no price data`)
-      err.statusCode = 404
-      throw err
-    }
-
-    return price
-
-  } catch (err) {
-    if (err.statusCode) {
-      throw err
-    }
-
-    console.error('Finnhub getPrice failed:', err.message)
-    const serviceErr = new Error('Market data is temporarily unavailable')
-    serviceErr.statusCode = 503
-    throw serviceErr
+  // Step 1: Redis check
+  const cached = await get(cacheKey)
+  if (cached) {
+    // parseFloat because Redis stores everything as a string
+    return parseFloat(cached)
   }
+
+  // Step 2: cache miss — call Stooq
+  // stooqProvider.getPrice() returns the full quote object.
+  // We store the full object under quote:TICKER as well so that
+  // getQuote() can reuse it without a second Stooq call.
+  const quote = await stooq.getPrice(normalized)
+
+  // Store full quote object for getQuote() to reuse
+  await set(`quote:${normalized}`, JSON.stringify(quote), TTL_PRICE)
+
+  // Store just the price number for getPrice() callers
+  await set(cacheKey, quote.price, TTL_PRICE)
+
+  return quote.price
 }
 
-// getQuote(ticker)
+// ── getQuote(ticker) ──────────────────────────────────────────────────────
 //
 // Returns a full quote object for a single ticker.
-// Used by portfolio service, GetQuotePopup, and the Quote page.
+// Used by portfolio/service.js for day change calculations,
+// the GetQuotePopup component, and the Quote page.
 //
-// Why separate from getPrice():
-//   getPrice() returns a number — simple interface for the trade engine.
-//   getQuote() returns a full object — richer data for UI and portfolio math.
-//   Both call the same Finnhub /quote endpoint. No extra API requests.
+// Flow:
+//  1. Check Redis for key: quote:TICKER
+//  2. Cache hit  → parse and return JSON object
+//  3. Cache miss → call stooqProvider.getPrice()
+//               → store both quote and price in Redis
+//               → return quote object
 //
-// Finnhub /quote response fields used:
-//   c  → current price
-//   d  → change in price since previous close (dollar amount per share)
-//   dp → change percent since previous close
-//   h  → day high
-//   l  → day low
-//   o  → day open
-//   pc → previous close
-//   t  → timestamp (unix seconds)
-//
-// Returns:
-//   { ticker, price, change, changePercent, high, low, open, prevClose, timestamp }
-//
-// Throws 404 if the ticker is not found (c === 0).
-// Throws 503 if the Finnhub call fails.
+// Return shape (unchanged from previous Finnhub version):
+//  { ticker, price, change, changePercent, high, low, open, prevClose, timestamp }
 const getQuote = async (ticker) => {
   const normalized = ticker.toUpperCase()
+  const cacheKey = `quote:${normalized}`
 
-  try {
-    const response = await axios.get(`${FINNHUB_BASE_URL}/quote`, {
-      params: {
-        symbol: normalized,
-        token: env.FINNHUB_API_KEY,
-      },
-    })
-
-    const data = response.data
-
-    // Finnhub returns c: 0 for unknown tickers — treat as not found.
-    if (!data.c || data.c === 0) {
-      const err = new Error(`Ticker '${normalized}' was not found or has no price data`)
-      err.statusCode = 404
-      throw err
-    }
-
-    return {
-      ticker:        normalized,
-      price:         data.c,   // current price
-      change:        data.d,   // dollar change per share since prev close
-      changePercent: data.dp,  // percent change since prev close
-      high:          data.h,   // day high
-      low:           data.l,   // day low
-      open:          data.o,   // day open
-      prevClose:     data.pc,  // previous close
-      timestamp:     data.t,   // unix timestamp of last quote
-    }
-
-  } catch (err) {
-    if (err.statusCode) {
-      throw err
-    }
-
-    console.error('Finnhub getQuote failed:', err.message)
-    const serviceErr = new Error('Market data is temporarily unavailable')
-    serviceErr.statusCode = 503
-    throw serviceErr
+  // Step 1: Redis check
+  const cached = await get(cacheKey)
+  if (cached) {
+    // JSON.parse because the object was stored with JSON.stringify
+    const quote = JSON.parse(cached)
+    // Always ensure ticker is on the returned object
+    return { ticker: normalized, ...quote }
   }
+
+  // Step 2: cache miss — call Stooq
+  const quote = await stooq.getPrice(normalized)
+
+  // Store full quote and price separately so both getQuote() and
+  // getPrice() benefit from this single Stooq call
+  await set(cacheKey, JSON.stringify(quote), TTL_PRICE)
+  await set(`price:${normalized}`, quote.price, TTL_PRICE)
+
+  return { ticker: normalized, ...quote }
 }
 
-// searchTickers(query)
+// ── searchTickers(query) ──────────────────────────────────────────────────
 //
-// Accepts a search string (e.g. 'APP') and returns a list of matching
-// NYSE and Nasdaq listed stocks.
+// Returns up to 10 matching tickers from the in-memory tickers.json list.
+// No external API call. No Redis. Sub-millisecond response.
 //
-// How it works:
-//   1. Calls Finnhub's symbol search endpoint: GET /search?q=APP&token=...
-//   2. Finnhub returns an array of matches across all global exchanges
-//   3. Two filters are applied to isolate US-listed common stocks:
+// Delegates entirely to tickerSearch.js which loaded tickers.json into
+// memory at server startup.
 //
-//      Filter 1 — type === 'Common Stock'
-//        Excludes ETFs, indices, warrants, preferred shares, and
-//        other instrument types that appear in Finnhub's search results.
-//        We only want tradeable common stocks.
-//
-//      Filter 2 — !symbol.includes('.')
-//        Finnhub includes cross-listings of US stocks on foreign exchanges
-//        (e.g. AAPL.SW for Swiss exchange, AAPL.DE for Germany).
-//        US-listed stocks on NYSE and Nasdaq never contain a dot in their
-//        symbol. Excluding any result with a dot removes foreign listings
-//        without needing an explicit exchange filter.
-//
-//   4. Results are capped at 10 — a search box does not need more than
-//      10 suggestions and returning hundreds of results wastes bandwidth.
-//
-//   5. Each result is mapped to a consistent shape:
-//      { ticker, companyName, exchange }
-//      exchange is set to 'US' for all results.
-//
-// Returns an empty array if no results match — not an error.
-// Throws 503 if the Finnhub call fails.
+// Return shape (unchanged from previous Finnhub version):
+//  [{ ticker, companyName, exchange }]
 const searchTickers = async (query) => {
-  try {
-    const response = await axios.get(`${FINNHUB_BASE_URL}/search`, {
-      params: {
-        q: query,
-        token: env.FINNHUB_API_KEY,
-      },
-    })
-
-    const results = response.data.result || []
-
-    const filtered = results
-      .filter((item) => item.type === 'Common Stock')
-      .filter((item) => !item.symbol.includes('.'))
-      .slice(0, 10)
-      .map((item) => ({
-        ticker: item.symbol,
-        companyName: item.description,
-        exchange: 'US',
-      }))
-
-    return filtered
-
-  } catch (err) {
-    if (err.statusCode) {
-      throw err
-    }
-
-    console.error('Finnhub searchTickers failed:', err.message)
-    const serviceErr = new Error('Ticker search is temporarily unavailable')
-    serviceErr.statusCode = 503
-    throw serviceErr
-  }
+  // searchInMemory is synchronous but wrapped in async to keep the
+  // interface consistent with the rest of this service
+  return searchInMemory(query)
 }
 
-// isMarketOpen()
+// ── isMarketOpen() ────────────────────────────────────────────────────────
 //
-// Returns true if the US market (NYSE) is currently open, false otherwise.
-// Accounts for weekends, public holidays, early closes, and timezone
-// differences automatically — Finnhub handles all of that logic server-side.
-//
-// How it works:
-//   1. Checks the BYPASS_MARKET_HOURS flag first.
-//      If true, returns true immediately without calling Finnhub.
-//      This allows trades to be tested at any time during development.
-//      This flag must never be true in production.
-//
-//   2. Calls Finnhub's market status endpoint:
-//      GET /stock/market-status?exchange=US&token=...
-//      Finnhub returns { isOpen: true/false, ... }
-//
-//   3. Returns the isOpen boolean directly.
-//
-// Why Finnhub handles this instead of local calculation:
-//   Calculating market open/close correctly requires knowing:
-//   - Current time in EST/EDT (daylight saving changes twice a year)
-//   - All NYSE public holidays for the current year
-//   - Early close days (e.g. day before Thanksgiving, Christmas Eve)
-//   Writing and maintaining that logic locally is error-prone.
-//   Finnhub's endpoint is authoritative and always current.
-//
-// Throws 503 if the Finnhub call fails.
-// In that case the trade engine in trade/service.js will block the trade
-// rather than allowing it through on a failed status check.
+// Returns true if the NYSE is currently open, false otherwise.
+// Delegates entirely to marketHours.js which handles:
+//  - Development bypass (NODE_ENV !== 'production' → always true)
+//  - Weekend check
+//  - Federal holiday check (Redis cached, date.nager.at on miss)
+//  - Early close days
+//  - EST trading hours window (9:30am–4:00pm)
 const isMarketOpen = async () => {
-  // Development bypass — skip the Finnhub call entirely.
-  // env.BYPASS_MARKET_HOURS is a boolean (converted from string in env.js).
-  // If true, return true immediately so trades can be tested at any hour.
-  if (env.BYPASS_MARKET_HOURS) {
-    return true
-  }
-
-  try {
-    const response = await axios.get(`${FINNHUB_BASE_URL}/stock/market-status`, {
-      params: {
-        exchange: 'US',
-        token: env.FINNHUB_API_KEY,
-      },
-    })
-
-    // response.data.isOpen is the only field we need.
-    // true  = market is currently open, trades are allowed
-    // false = market is closed, trades are blocked
-    return response.data.isOpen
-
-  } catch (err) {
-    if (err.statusCode) {
-      throw err
-    }
-
-    // If Finnhub's market status endpoint is unreachable, we cannot
-    // confirm whether the market is open. The safe choice is to block
-    // trades rather than allow them through on an unknown status.
-    // Throwing 503 lets the trade engine surface a clear error to the user.
-    console.error('Finnhub isMarketOpen failed:', err.message)
-    const serviceErr = new Error('Unable to verify market status. Please try again.')
-    serviceErr.statusCode = 503
-    throw serviceErr
-  }
+  return calcMarketOpen()
 }
 
-module.exports = { getPrice, getQuote, searchTickers, isMarketOpen }
+// ── getStockProfile(ticker) ───────────────────────────────────────────────
+//
+// Returns company profile information for a ticker.
+// Used by the Quote page (Step 6.11/6.12) to display company details
+// alongside the price chart.
+//
+// Flow:
+//  1. Check Redis for key: profile:TICKER (24h TTL)
+//  2. Cache hit  → parse and return JSON object
+//  3. Cache miss → call secProvider.getStockProfile()
+//               → store in Redis with 24h TTL
+//               → return object
+//
+// Return shape:
+//  { name, ticker, exchange, industry, description, cik }
+//
+// secProvider.js is required here lazily (inside the function) rather
+// than at the top of this file. Reason: secProvider reads tickers.json
+// via the tickerSearch module. Both are already loaded at startup.
+// No circular dependency issue — just keeping the require visible
+// next to the code that uses it.
+const getStockProfile = async (ticker) => {
+  const normalized = ticker.toUpperCase()
+  const cacheKey = `profile:${normalized}`
+
+  // Step 1: Redis check
+  const cached = await get(cacheKey)
+  if (cached) {
+    return JSON.parse(cached)
+  }
+
+  // Step 2: cache miss — call SEC EDGAR
+  const secProvider = require('./providers/secProvider')
+  const profile = await secProvider.getStockProfile(normalized)
+
+  await set(cacheKey, JSON.stringify(profile), TTL_PROFILE)
+
+  return profile
+}
+
+// ── getCandles(ticker, days) ──────────────────────────────────────────────
+//
+// Returns daily OHLCV candle data for the last N days.
+// Used by the Quote page chart (Step 6.11/6.12).
+//
+// Flow:
+//  1. Check Redis for key: candles:TICKER (1h TTL)
+//  2. Cache hit  → parse and return JSON array
+//  3. Cache miss → call stooqProvider.getHistorical()
+//               → store in Redis with 1h TTL
+//               → return array
+//
+// Return shape:
+//  [{ time, open, high, low, close, volume }]
+//  Sorted oldest to newest (required by recharts time axis)
+const getCandles = async (ticker, days = 90) => {
+  const normalized = ticker.toUpperCase()
+  const cacheKey = `candles:${normalized}`
+
+  // Step 1: Redis check
+  const cached = await get(cacheKey)
+  if (cached) {
+    return JSON.parse(cached)
+  }
+
+  // Step 2: cache miss — call Stooq
+  const candles = await stooq.getHistorical(normalized, days)
+
+  await set(cacheKey, JSON.stringify(candles), TTL_CANDLES)
+
+  return candles
+}
+
+module.exports = { getPrice, getQuote, searchTickers, isMarketOpen, getStockProfile, getCandles }

@@ -67,6 +67,16 @@ const helmet = require('helmet')
 const morgan = require('morgan')
 const connectDB = require('./config/db')
 
+// Connects to Redis at startup — must be required before any module
+// that reads or writes cache (market service, price updater worker)
+require('./modules/market/cache/redisClient')
+
+// Background worker that fetches prices from Stooq every 60 seconds
+// and writes them into Redis for all tickers with active positions.
+// Started after MongoDB connects so Position.distinct() has a live
+// database connection to query.
+const { startPriceUpdater } = require('./modules/market/workers/priceUpdater')
+
 const app = express()
 
 // ─── Global Middleware ────────────────────────────────────────
@@ -145,10 +155,16 @@ app.use((err, req, res, next) => {
 })
 
 // ─── Start Server ─────────────────────────────────────────────
-// Connect to MongoDB first, then start accepting HTTP requests
-// The server never starts if the database connection fails
+// Order matters:
+//  1. connectDB()         — MongoDB must be connected before the worker
+//                           queries Position.distinct('ticker')
+//  2. startPriceUpdater() — starts immediately after DB is ready,
+//                           runs once then every 60 seconds
+//  3. app.listen()        — server starts accepting requests last,
+//                           so Redis is already warm before first user hits it
 const start = async () => {
   await connectDB()
+  startPriceUpdater()
   app.listen(env.PORT, () => {
     console.log(`Server running on port ${env.PORT} in ${env.NODE_ENV} mode`)
   })
