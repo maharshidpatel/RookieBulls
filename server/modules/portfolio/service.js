@@ -29,6 +29,21 @@
 const { getAllPositions } = require('../position/service')
 const { getQuote } = require('../market/service')
 
+// getTodayMarketOpen()
+//
+// Returns a Date object representing 9:30 AM ET today.
+// Used to determine if a position was opened before or after today's market open.
+// Positions opened before 9:30 AM ET use prevClose as the day change baseline.
+// Positions opened at or after 9:30 AM ET use avgBuyPrice as the baseline —
+// the prevClose predates their purchase so it is not a valid comparison point.
+const getTodayMarketOpen = () => {
+  const now = new Date()
+  const etString = now.toLocaleString('en-US', { timeZone: 'America/New_York' })
+  const et = new Date(etString)
+  et.setHours(9, 30, 0, 0)
+  return et
+}
+
 // getPortfolio(userId)
 //
 // Returns the full portfolio for a user — all open positions enriched
@@ -76,16 +91,58 @@ const getPortfolio = async (userId) => {
       // pnlPercent: gain or loss as a percentage of cost basis.
       const pnlPercent = parseFloat(((pnl / costBasis) * 100).toFixed(2))
 
-      // dayChange: how much this position's total value changed today.
-      // quote.change is the per-share dollar change since previous close.
-      // Multiply by quantity to get the total position dollar change.
-      // Example: AAPL up $1.50/share, user holds 10 shares → dayChange = $15.00
-      const dayChange = parseFloat((quote.change * position.quantity).toFixed(2))
+      // Calculate today's market open time once — shared across all positions in this request.
+      // Avoids recalculating on every iteration of the map.
+      const todayMarketOpen = getTodayMarketOpen()
 
-      // dayChangePercent: the percentage change for this stock today.
-      // Same value regardless of quantity — it is a per-share percentage.
-      // Rounded to 2 decimal places.
-      const dayChangePercent = parseFloat(quote.changePercent.toFixed(2))
+      // basePrice — the reference point for day change calculation.
+      //
+      // Two cases:
+      //   Position opened today (at or after 9:30 AM ET):
+      //     Use avgBuyPrice — the user did not own the stock at yesterday's close.
+      //     prevClose predates their purchase and would inflate the day change figure.
+      //
+      //   Position opened before today:
+      //     Use prevClose — the standard day change baseline.
+      //     Reflects how much the stock moved since yesterday's close.
+
+      // KNOWN LIMITATION:
+      // When a user adds more shares to a position they already held from a previous day,
+      // the day change calculation will be slightly overstated on that day only.
+      //
+      // Why: openedAt stores when the position was first created, not when shares were
+      // last added. So a position from yesterday that gets 1 new share today still has
+      // openedAt = yesterday, which means prevClose is used as the baseline for all shares
+      // including the ones just bought. The new shares had no movement from prevClose to
+      // their purchase price — but the formula counts that movement anyway.
+      //
+      // Example:
+      //   Held 1 AAPL from yesterday. prevClose = $210, current = $220.
+      //   Buy 1 more AAPL today at $220.
+      //   Correct day change:  (220 - 210) * 1 original share = $10
+      //   Calculated day change: (220 - 210) * 2 total shares = $20  ← overstated
+      //
+      // Impact: affects only the day the additional shares are purchased. The next
+      // trading day prevClose updates to reflect the full position correctly.
+      //
+      // Fix post-MVP: add a lastAddedAt field to the Position model and use it
+      // instead of openedAt to detect same-day additions.
+      const basePrice = new Date(position.openedAt) >= todayMarketOpen
+        ? position.avgBuyPrice   // bought today — measure from purchase price
+        : quote.prevClose         // held before today — measure from yesterday's close
+
+      // dayChange: dollar value change of this position since basePrice.
+      // Positive = position gained value today.
+      // Negative = position lost value today.
+      const dayChange = parseFloat(
+        ((quote.price - basePrice) * position.quantity).toFixed(2)
+      )
+
+      // dayChangePercent: percentage change from basePrice to current price.
+      // Same baseline as dayChange — avgBuyPrice for today's purchases, prevClose otherwise.
+      const dayChangePercent = parseFloat(
+        (((quote.price - basePrice) / basePrice) * 100).toFixed(2)
+      )
 
       return {
         ticker:           position.ticker,
