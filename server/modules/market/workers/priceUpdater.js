@@ -22,6 +22,16 @@
  * Interval: every 60 seconds
  * Redis TTL: 90 seconds (30 second buffer — cache never expires between ticks)
  *
+ * What this worker writes to Redis:
+ *  price:TICKER only — just the number (e.g. 182.10)
+ *
+ * What this worker does NOT write:
+ *  quote:TICKER — intentionally excluded.
+ *  The quote object requires prevClose, change, and changePercent which
+ *  are derived in service.js using the candles cache. The worker does not
+ *  have access to that logic. Writing an incomplete quote here would
+ *  overwrite a properly calculated one and break portfolio and QuotePage.
+ *
  * Why query Position.distinct('ticker') instead of a hardcoded list:
  *  Only tickers with at least one active user position need live prices.
  *  This scales naturally — if 1000 users hold 50 unique tickers,
@@ -35,10 +45,9 @@ const { set } = require('../cache/redisClient')
 const Position = require('../../position/model')
 
 // How often the worker runs in milliseconds
-// 60000ms = 60 seconds
-const INTERVAL_MS = 60000
+const INTERVAL_MS = 60000 // 60 seconds
 
-// How long each Redis key lives before expiring
+// How long each Redis price key lives before expiring
 // 90 seconds = 60s interval + 30s buffer
 // The buffer ensures the cache never expires between ticks under
 // normal conditions. If the worker is delayed slightly, the 30s
@@ -53,8 +62,8 @@ const PRICE_TTL = 90
  *
  * Steps:
  *  1. Query MongoDB for all unique tickers with open positions
- *  2. For each ticker: fetch quote from Stooq
- *  3. Write both quote:TICKER and price:TICKER into Redis
+ *  2. For each ticker: fetch raw quote from Stooq (price only, no history)
+ *  3. Write price:TICKER into Redis
  *  4. Log how many tickers were updated
  *
  * Errors are caught per-ticker so one bad ticker (e.g. a delisted
@@ -62,10 +71,6 @@ const PRICE_TTL = 90
  */
 const runUpdate = async () => {
   try {
-    // Position.distinct('ticker') returns an array of unique ticker strings
-    // across ALL positions for ALL users in the database.
-    // Example: ['AAPL', 'MSFT', 'TSLA']
-    // If no positions exist, returns an empty array — no Stooq calls made.
     const tickers = await Position.distinct('ticker')
 
     if (tickers.length === 0) {
@@ -76,23 +81,20 @@ const runUpdate = async () => {
     let updated = 0
 
     // Process each ticker sequentially to avoid hammering Stooq
-    // with many simultaneous requests. Sequential is slower than
-    // Promise.all() but far safer for a free data source with no
-    // published rate limit.
+    // with simultaneous requests. Sequential is safer for a free
+    // data source with no published rate limit.
     for (const ticker of tickers) {
       try {
-        const quote = await stooq.getPrice(ticker)
+        // stooqProvider.getPrice(ticker) — single quote request only.
+        // No history, no prevClose derivation. Just the current price.
+        const raw = await stooq.getPrice(ticker)
 
-        // Write full quote object — used by getQuote() and portfolio service
-        await set(`quote:${ticker}`, JSON.stringify(quote), PRICE_TTL)
-
-        // Write price number — used by getPrice() and trade engine
-        await set(`price:${ticker}`, quote.price, PRICE_TTL)
+        // Write price number only — trade engine and portfolio service
+        // read this key. quote:TICKER is NOT written here — see header comment.
+        await set(`price:${ticker}`, raw.price, PRICE_TTL)
 
         updated++
       } catch (err) {
-        // Log the failure for this ticker but continue with the rest.
-        // A delisted or invalid ticker should not crash the entire worker.
         console.error(`Price updater: failed to update ${ticker}:`, err.message)
       }
     }
@@ -100,8 +102,6 @@ const runUpdate = async () => {
     console.log(`Price updater: updated ${updated}/${tickers.length} tickers`)
 
   } catch (err) {
-    // Outer catch handles MongoDB failures (Position.distinct failing).
-    // Log and continue — the worker will retry on the next tick.
     console.error('Price updater: failed to read positions from MongoDB:', err.message)
   }
 }
@@ -118,11 +118,7 @@ const runUpdate = async () => {
  */
 const startPriceUpdater = () => {
   console.log('Price updater: starting (interval: 60s)')
-
-  // Run once immediately so prices are warm before the first request
   runUpdate()
-
-  // Then repeat every 60 seconds
   setInterval(runUpdate, INTERVAL_MS)
 }
 

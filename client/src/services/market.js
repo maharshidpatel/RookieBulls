@@ -61,3 +61,23 @@ export const getFullQuote = async (ticker) => {
   const response = await axios.get(`/api/market/quote/${ticker}`);
   return response.data;
 };
+
+// getStockProfile(ticker)
+//
+// Calls GET /api/market/profile/:ticker
+// Returns { name, ticker, exchange, industry, cik }
+// Used by QuotePage to display company header information.
+export const getStockProfile = async (ticker) => {
+  const response = await axios.get(`/api/market/profile/${ticker}`);
+  return response.data;
+};
+
+// getCandles(ticker)
+//
+// Calls GET /api/market/candles/:ticker
+// Returns array of { time, open, high, low, close, volume } — oldest first.
+// Passed directly to QuotePage chart — no reversal needed.
+export const getCandles = async (ticker) => {
+  const response = await axios.get(`/api/market/candles/${ticker}`);
+  return response.data.candles;
+};

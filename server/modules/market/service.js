@@ -26,14 +26,24 @@
  *  Providers are only called on a cache miss.
  *  Results are stored in Redis before being returned.
  *
- * WHAT CHANGED FROM PREVIOUS VERSION:
- *  - Finnhub removed entirely
- *  - getPrice()    → Redis check → stooqProvider.getPrice()
- *  - getQuote()    → Redis check → stooqProvider.getPrice()
- *  - searchTickers() → delegates to tickerSearch (in-memory, no API call)
- *  - isMarketOpen()  → delegates to marketHours (local calculation)
- *  - getStockProfile() → Redis check → secProvider.getStockProfile() (new)
- *  - getCandles()      → Redis check → stooqProvider.getHistorical()   (new)
+ * REQUEST STRATEGY — strictly 1 Stooq request per ticker per function call:
+ *
+ *  getPrice() / getQuote():
+ *    Single quote request via stooqProvider.getPrice().
+ *    prevClose derived from candles Redis cache — no second Stooq call.
+ *    If candles cache is cold, getHistorical() is called once to populate it.
+ *
+ *  getCandles():
+ *    Redis check first. On miss, calls stooqProvider.getHistorical() once.
+ *    Cached until next market open (9:30 AM ET next trading day).
+ *    All chart ranges (5D/1M/3M/6M/1Y/2Y/5Y/All) sliced client-side.
+ *    Zero additional Stooq calls per trading day per ticker after first load.
+ *
+ * CACHE TTL STRATEGY:
+ *  price:TICKER     → 90 seconds (worker refreshes every 60s)
+ *  quote:TICKER     → 90 seconds
+ *  candles:TICKER   → until next market open (9:30 AM ET)
+ *  profile:TICKER   → 24 hours
  *
  * WHAT DOES NOT BELONG HERE:
  *  - Buy or sell logic
@@ -47,11 +57,87 @@ const stooq = require('./providers/stooqProvider')
 const { isMarketOpen: calcMarketOpen } = require('./utils/marketHours')
 const { searchTickers: searchInMemory } = require('./utils/tickerSearch')
 
-// TTL constants — how long each key type lives in Redis
-// These are defined here so they are visible alongside the logic that uses them
-const TTL_PRICE = 90        // 90 seconds — worker refreshes every 60s, 30s buffer
-const TTL_CANDLES = 60 * 60 // 1 hour — daily candle data does not change intraday
+// TTL constants
+const TTL_PRICE   = 90           // 90 seconds — price updater refreshes every 60s
 const TTL_PROFILE = 60 * 60 * 24 // 24 hours — company profiles rarely change
+
+// ── secondsUntilNextMarketOpen() ──────────────────────────────────────────
+//
+// Returns the number of seconds until 9:30 AM ET on the next trading day.
+// Used as the Redis TTL for candles — cache always expires at market open
+// so the chart is fresh at the start of every trading session.
+//
+// Why this matters:
+//  A fixed 24h TTL could leave stale candles serving for hours into a new
+//  trading day. For example, candles cached at 11:30 AM would expire at
+//  11:30 AM the next day — missing the first 2 hours of the new session.
+//  Expiring at 9:30 AM guarantees the first request of each session fetches
+//  fresh data.
+//
+// Simplified — does not account for holidays or weekends.
+// On a weekend, next market open is Monday 9:30 AM ET.
+// On a weekday after close, next market open is tomorrow 9:30 AM ET.
+// On a weekday before open, next market open is today 9:30 AM ET.
+const secondsUntilNextMarketOpen = () => {
+  const nowET = new Date(
+    new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })
+  )
+
+  const next = new Date(nowET)
+  next.setHours(9, 30, 0, 0)
+
+  // If 9:30 AM today has already passed, move to tomorrow
+  if (nowET >= next) {
+    next.setDate(next.getDate() + 1)
+  }
+
+  // Skip to Monday if next open lands on Saturday or Sunday
+  const day = next.getDay()
+  if (day === 6) next.setDate(next.getDate() + 2) // Saturday → Monday
+  if (day === 0) next.setDate(next.getDate() + 1) // Sunday → Monday
+
+  const diffMs  = next.getTime() - nowET.getTime()
+  const diffSec = Math.ceil(diffMs / 1000)
+
+  // Minimum 60 seconds — prevents a TTL of 0 right at market open
+  return Math.max(diffSec, 60)
+}
+
+// ── getPrevCloseFromCandles(normalized) ───────────────────────────────────
+//
+// Reads the candles Redis cache and returns the second-to-last row's close
+// as prevClose. If cache is cold, fetches full history and populates it.
+//
+// Called by getPrice() and getQuote() when market is open.
+// Avoids any additional Stooq quote or history requests for prevClose.
+//
+// Returns prevClose as a number, or null if unavailable.
+const getPrevCloseFromCandles = async (normalized) => {
+  const candleKey = `candles:${normalized}`
+  let candles
+
+  const cached = await get(candleKey)
+  if (cached) {
+    candles = JSON.parse(cached)
+  } else {
+    // Cache cold — fetch full history and cache it
+    try {
+      candles = await stooq.getHistorical(normalized)
+      const ttl = secondsUntilNextMarketOpen()
+      await set(candleKey, JSON.stringify(candles), ttl)
+    } catch {
+      // History unavailable — prevClose will fall back to open in caller
+      return null
+    }
+  }
+
+  // Second-to-last row = previous completed session = prevClose
+  if (candles && candles.length >= 2) {
+    return candles[candles.length - 2].close
+  }
+
+  return null
+}
 
 // ── getPrice(ticker) ──────────────────────────────────────────────────────
 //
@@ -60,77 +146,113 @@ const TTL_PROFILE = 60 * 60 * 24 // 24 hours — company profiles rarely change
 // and by portfolio/service.js to calculate market value.
 //
 // Flow:
-//  1. Check Redis for key: price:TICKER
+//  1. Check Redis for key: price:TICKER (90s TTL)
 //  2. Cache hit  → return cached number immediately
-//  3. Cache miss → call stooqProvider.getPrice()
-//               → store result in Redis with 90s TTL
+//  3. Cache miss → call stooqProvider.getPrice() — 1 Stooq request
+//               → store price and quote in Redis
 //               → return number
-//
-// Why a separate price key alongside the quote key:
-//  trade/service.js and portfolio/service.js only need a number.
-//  Storing price separately avoids parsing the full quote JSON
-//  object every time only a number is needed.
 const getPrice = async (ticker) => {
   const normalized = ticker.toUpperCase()
-  const cacheKey = `price:${normalized}`
+  const cacheKey   = `price:${normalized}`
 
   // Step 1: Redis check
   const cached = await get(cacheKey)
   if (cached) {
-    // parseFloat because Redis stores everything as a string
     return parseFloat(cached)
   }
 
-  // Step 2: cache miss — call Stooq
-  // stooqProvider.getPrice() returns the full quote object.
-  // We store the full object under quote:TICKER as well so that
-  // getQuote() can reuse it without a second Stooq call.
-  const quote = await stooq.getPrice(normalized)
+  // Step 2: cache miss — fetch quote from Stooq (1 request)
+  const raw        = await stooq.getPrice(normalized)
+  const marketOpen = await calcMarketOpen()
 
-  // Store full quote object for getQuote() to reuse
+  // Derive prevClose — from candles cache when market is open,
+  // current price when market is closed (close price = completed session)
+  let prevClose = raw.open // fallback
+  if (!marketOpen) {
+    prevClose = raw.price
+  } else {
+    const fromCandles = await getPrevCloseFromCandles(normalized)
+    if (fromCandles !== null) prevClose = fromCandles
+  }
+
+  const change        = parseFloat((raw.price - prevClose).toFixed(2))
+  const changePercent = parseFloat(((change / prevClose) * 100).toFixed(2))
+
+  const quote = {
+    price:         raw.price,
+    change,
+    changePercent,
+    high:          raw.high,
+    low:           raw.low,
+    open:          raw.open,
+    prevClose,
+    timestamp:     raw.timestamp,
+  }
+
+  // Cache full quote object so getQuote() reuses it without another Stooq call
   await set(`quote:${normalized}`, JSON.stringify(quote), TTL_PRICE)
+  await set(cacheKey, raw.price, TTL_PRICE)
 
-  // Store just the price number for getPrice() callers
-  await set(cacheKey, quote.price, TTL_PRICE)
-
-  return quote.price
+  return raw.price
 }
 
 // ── getQuote(ticker) ──────────────────────────────────────────────────────
 //
 // Returns a full quote object for a single ticker.
-// Used by portfolio/service.js for day change calculations,
-// the GetQuotePopup component, and the Quote page.
+// Used by portfolio/service.js, TradePanel, and QuotePage.
 //
 // Flow:
-//  1. Check Redis for key: quote:TICKER
-//  2. Cache hit  → parse and return JSON object
-//  3. Cache miss → call stooqProvider.getPrice()
-//               → store both quote and price in Redis
-//               → return quote object
+//  1. Check Redis for key: quote:TICKER (90s TTL)
+//  2. Cache hit  → return cached object
+//  3. Cache miss → call stooqProvider.getPrice() — 1 Stooq request
+//               → derive prevClose from candles cache (no extra Stooq call)
+//               → store quote and price in Redis
+//               → return object
 //
-// Return shape (unchanged from previous Finnhub version):
+// Return shape:
 //  { ticker, price, change, changePercent, high, low, open, prevClose, timestamp }
 const getQuote = async (ticker) => {
   const normalized = ticker.toUpperCase()
-  const cacheKey = `quote:${normalized}`
+  const cacheKey   = `quote:${normalized}`
 
   // Step 1: Redis check
   const cached = await get(cacheKey)
   if (cached) {
-    // JSON.parse because the object was stored with JSON.stringify
-    const quote = JSON.parse(cached)
-    // Always ensure ticker is on the returned object
-    return { ticker: normalized, ...quote }
+    return { ticker: normalized, ...JSON.parse(cached) }
   }
 
-  // Step 2: cache miss — call Stooq
-  const quote = await stooq.getPrice(normalized)
+  // Step 2: cache miss — fetch quote from Stooq (1 request)
+  const raw        = await stooq.getPrice(normalized)
+  const marketOpen = await calcMarketOpen()
 
-  // Store full quote and price separately so both getQuote() and
-  // getPrice() benefit from this single Stooq call
-  await set(cacheKey, JSON.stringify(quote), TTL_PRICE)
-  await set(`price:${normalized}`, quote.price, TTL_PRICE)
+  // Derive prevClose from candles cache — no additional Stooq call
+  let prevClose = raw.open // fallback
+  if (!marketOpen) {
+    // Market closed — current price is the completed session close
+    prevClose = raw.price
+  } else {
+    // Market open — second-to-last candle row = previous completed session
+    const fromCandles = await getPrevCloseFromCandles(normalized)
+    if (fromCandles !== null) prevClose = fromCandles
+  }
+
+  const change        = parseFloat((raw.price - prevClose).toFixed(2))
+  const changePercent = parseFloat(((change / prevClose) * 100).toFixed(2))
+
+  const quote = {
+    price:         raw.price,
+    change,
+    changePercent,
+    high:          raw.high,
+    low:           raw.low,
+    open:          raw.open,
+    prevClose,
+    timestamp:     raw.timestamp,
+  }
+
+  // Cache both quote object and price number
+  await set(cacheKey,              JSON.stringify(quote), TTL_PRICE)
+  await set(`price:${normalized}`, raw.price,             TTL_PRICE)
 
   return { ticker: normalized, ...quote }
 }
@@ -139,27 +261,15 @@ const getQuote = async (ticker) => {
 //
 // Returns up to 10 matching tickers from the in-memory tickers.json list.
 // No external API call. No Redis. Sub-millisecond response.
-//
-// Delegates entirely to tickerSearch.js which loaded tickers.json into
-// memory at server startup.
-//
-// Return shape (unchanged from previous Finnhub version):
-//  [{ ticker, companyName, exchange }]
 const searchTickers = async (query) => {
-  // searchInMemory is synchronous but wrapped in async to keep the
-  // interface consistent with the rest of this service
   return searchInMemory(query)
 }
 
 // ── isMarketOpen() ────────────────────────────────────────────────────────
 //
 // Returns true if the NYSE is currently open, false otherwise.
-// Delegates entirely to marketHours.js which handles:
-//  - Development bypass (NODE_ENV !== 'production' → always true)
-//  - Weekend check
-//  - Federal holiday check (Redis cached, date.nager.at on miss)
-//  - Early close days
-//  - EST trading hours window (9:30am–4:00pm)
+// Delegates to marketHours.js which handles weekends, holidays,
+// early close days, and the development bypass.
 const isMarketOpen = async () => {
   return calcMarketOpen()
 }
@@ -167,74 +277,76 @@ const isMarketOpen = async () => {
 // ── getStockProfile(ticker) ───────────────────────────────────────────────
 //
 // Returns company profile information for a ticker.
-// Used by the Quote page (Step 6.11/6.12) to display company details
-// alongside the price chart.
+// Used by QuotePage to display company name, exchange, industry.
 //
 // Flow:
 //  1. Check Redis for key: profile:TICKER (24h TTL)
-//  2. Cache hit  → parse and return JSON object
+//  2. Cache hit  → return cached object
 //  3. Cache miss → call secProvider.getStockProfile()
 //               → store in Redis with 24h TTL
 //               → return object
 //
 // Return shape:
 //  { name, ticker, exchange, industry, description, cik }
-//
-// secProvider.js is required here lazily (inside the function) rather
-// than at the top of this file. Reason: secProvider reads tickers.json
-// via the tickerSearch module. Both are already loaded at startup.
-// No circular dependency issue — just keeping the require visible
-// next to the code that uses it.
 const getStockProfile = async (ticker) => {
   const normalized = ticker.toUpperCase()
-  const cacheKey = `profile:${normalized}`
+  const cacheKey   = `profile:${normalized}`
 
-  // Step 1: Redis check
   const cached = await get(cacheKey)
   if (cached) {
     return JSON.parse(cached)
   }
 
-  // Step 2: cache miss — call SEC EDGAR
   const secProvider = require('./providers/secProvider')
-  const profile = await secProvider.getStockProfile(normalized)
+  const profile     = await secProvider.getStockProfile(normalized)
 
   await set(cacheKey, JSON.stringify(profile), TTL_PROFILE)
 
   return profile
 }
 
-// ── getCandles(ticker, days) ──────────────────────────────────────────────
+// ── getCandles(ticker) ────────────────────────────────────────────────────
 //
-// Returns daily OHLCV candle data for the last N days.
-// Used by the Quote page chart (Step 6.11/6.12).
+// Returns the full daily OHLCV history for a ticker.
+// Used by QuotePage chart — all ranges sliced client-side.
 //
 // Flow:
-//  1. Check Redis for key: candles:TICKER (1h TTL)
-//  2. Cache hit  → parse and return JSON array
-//  3. Cache miss → call stooqProvider.getHistorical()
-//               → store in Redis with 1h TTL
+//  1. Check Redis for key: candles:TICKER
+//  2. Cache hit  → return cached array (TTL set to next market open)
+//  3. Cache miss → call stooqProvider.getHistorical() — 1 Stooq request
+//               → store in Redis until next market open (9:30 AM ET)
 //               → return array
 //
+// Cache expires at next market open — not a fixed TTL.
+// This guarantees chart data is always fresh at the start of each session
+// regardless of when the cache was first populated.
+//
 // Return shape:
-//  [{ time, open, high, low, close, volume }]
-//  Sorted oldest to newest (required by recharts time axis)
-const getCandles = async (ticker, days = 90) => {
+//  [{ time, open, high, low, close, volume }] — oldest first
+const getCandles = async (ticker) => {
   const normalized = ticker.toUpperCase()
-  const cacheKey = `candles:${normalized}`
+  const cacheKey   = `candles:${normalized}`
 
-  // Step 1: Redis check
   const cached = await get(cacheKey)
   if (cached) {
     return JSON.parse(cached)
   }
 
-  // Step 2: cache miss — call Stooq
-  const candles = await stooq.getHistorical(normalized, days)
+  // Cache miss — fetch full history from Stooq (1 request)
+  const candles = await stooq.getHistorical(normalized)
 
-  await set(cacheKey, JSON.stringify(candles), TTL_CANDLES)
+  // TTL = seconds until 9:30 AM ET next trading day
+  const ttl = secondsUntilNextMarketOpen()
+  await set(cacheKey, JSON.stringify(candles), ttl)
 
   return candles
 }
 
-module.exports = { getPrice, getQuote, searchTickers, isMarketOpen, getStockProfile, getCandles }
+module.exports = {
+  getPrice,
+  getQuote,
+  searchTickers,
+  isMarketOpen,
+  getStockProfile,
+  getCandles,
+}
