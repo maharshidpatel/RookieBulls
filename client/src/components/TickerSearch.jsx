@@ -30,7 +30,7 @@ import { useState, useEffect, useRef } from 'react';
 import { searchTickers } from '../services/market';
 import theme from '../styles/theme';
 
-const TickerSearch = ({ onSelect, onClear, disabled, width = '100%' }) => {
+const TickerSearch = ({ onSelect, onClear, disabled, autoFocus = false, width = '100%' }) => {
   const [query,    setQuery]    = useState('');
   const [results,  setResults]  = useState([]);
   const [isOpen,   setIsOpen]   = useState(false);
@@ -133,6 +133,7 @@ const TickerSearch = ({ onSelect, onClear, disabled, width = '100%' }) => {
               style={styles.input}
               onFocus={() => { if (results.length > 0) setIsOpen(true); }}
               autoComplete="off"
+              autoFocus={autoFocus}
             />
             {loading && <span style={styles.spinner}>...</span>}
           </div>

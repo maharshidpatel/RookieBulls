@@ -123,8 +123,8 @@ const xAxisConfig = {
 };
 
 const QuotePage = () => {
-  const { ticker }                      = useParams();
-  const { openBuyPanel, openSellPanel } = useOutletContext();
+  const { ticker } = useParams();
+  const { openBuyPanel, openSellPanel, refreshKey } = useOutletContext();
 
   const [quote,   setQuote]   = useState(null);
   const [profile, setProfile] = useState(null);
@@ -136,6 +136,8 @@ const QuotePage = () => {
 
   const loadData = useCallback(async () => {
     if (!ticker) return;
+    // Store so Quote nav pill can navigate back here directly
+    localStorage.setItem('lastQuoteTicker', ticker.toUpperCase());
     setLoading(true);
     setError(null);
 
@@ -160,6 +162,11 @@ const QuotePage = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Re-fetch after a trade completes (refreshKey incremented in Layout)
+  useEffect(() => {
+    if (refreshKey > 0) loadData();
+  }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Slice candles by calendar date for the selected range.
   // null calendarDays = All range — return entire dataset unfiltered.

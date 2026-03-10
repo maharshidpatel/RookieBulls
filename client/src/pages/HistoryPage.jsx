@@ -28,12 +28,14 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useOutletContext } from 'react-router-dom';
 import fetchTradeHistory from '../services/history';
 import theme from '../styles/theme';
 import tableStyles from '../styles/tableStyles';
 
 const HistoryPage = () => {
   const navigate = useNavigate();
+  const { refreshKey } = useOutletContext();
 
   const [trades,          setTrades]          = useState([]);
   const [loading,         setLoading]         = useState(true);
@@ -41,19 +43,26 @@ const HistoryPage = () => {
   const [selectedMonthKey, setSelectedMonthKey] = useState(null);
   const [dropdownHovered,  setDropdownHovered]  = useState(false);
 
+  const load = async () => {
+    try {
+      const data = await fetchTradeHistory();
+      setTrades(data);
+    } catch {
+      setError('Failed to load trade history. Please refresh.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial load
   useEffect(() => {
-    const load = async () => {
-      try {
-        const data = await fetchTradeHistory();
-        setTrades(data);
-      } catch {
-        setError('Failed to load trade history. Please refresh.');
-      } finally {
-        setLoading(false);
-      }
-    };
     load();
   }, []);
+
+  // Re-fetch after a trade completes (refreshKey incremented in Layout)
+  useEffect(() => {
+    if (refreshKey > 0) load();
+  }, [refreshKey]); 
 
 
   // ── Month grouping ───────────────────────────────────────────────────────────

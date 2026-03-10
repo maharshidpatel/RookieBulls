@@ -109,6 +109,9 @@ export function AuthProvider({ children }) {
     setAuth({ user: null, accessToken: null, refreshToken: null });
     sessionStorage.removeItem('auth');
 
+    // Clear last visited quote — prevents showing a previous user's ticker
+    // on the Quote pill after login by a different account.
+    localStorage.removeItem('lastQuoteTicker');
     // Stop the timer and remove all event listeners on logout.
     // Prevents the timer from running when no user is active.
     stopInactivityTimer();

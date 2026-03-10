@@ -46,6 +46,7 @@ const GetQuotePopup = ({ onClose }) => {
           </p>
           <TickerSearch
             width="100%"
+            autoFocus={true}
             onSelect={handleTickerSelect}
           />
         </div>
