@@ -3,23 +3,15 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * Responsibility:
  *   Full quote view for a single ticker.
- *   Fetches quote, profile, and candles in parallel.
- *   Renders company header, price block, OHLC stats, and price history chart.
- *   Buy and Sell buttons open TradePanel with ticker pre-set.
+ *   Fetches quote, profile, and candles in parallel on load.
+ *   Polls quote only every 15s — profile and candles do not change on that cadence.
+ *   Flash effect on price change — green background if price went up,
+ *   red background if price went down. Clears after 1.5 seconds.
  *
  * Chart ranges: 5D, 1M, 3M, 6M, 1Y, 2Y, 5Y, All
  *   All served from a single full-history candle dataset fetched on load.
- *   Stooq returns all available data — no date range in the request.
  *   No extra API calls when switching ranges — all slicing is done client-side.
- *   Cache expires at next market open (9:30 AM ET) so the chart is always
- *   fresh at the start of each trading session.
- *
- * X-axis formatting per range:
- *   5D       — "Mon Mar 9" — all 5 points shown
- *   1M, 3M   — "Mar 9" — sparse ticks
- *   6M, 1Y   — "Jan", "Feb" — month name only
- *   2Y       — "Jan '24" — month + short year
- *   5Y, All  — "2024" — year only
+ *   Cache expires at next market open (9:30 AM ET).
  *
  * Does NOT belong here:
  *   Trade execution, wallet data, portfolio calculations.
@@ -28,7 +20,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useOutletContext } from 'react-router-dom';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
@@ -50,14 +42,8 @@ const RANGES = [
   { label: 'All', calendarDays: null },
 ];
 
-// xAxisConfig — controls tick formatting and interval per range
-//
-// formatter: how each tick label is displayed
-// interval:  recharts interval prop — 'preserveStartEnd' or a number
-//            number = show every Nth tick (0 = show all)
 const xAxisConfig = {
   '5D': {
-    // Show all 5 dates — "Mon Mar 9"
     formatter: (val) => {
       const d = new Date(val + 'T00:00:00');
       return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -65,7 +51,6 @@ const xAxisConfig = {
     interval: 0,
   },
   '1M': {
-    // Show "Mar 9", "Mar 16" — every 5 trading days
     formatter: (val) => {
       const d = new Date(val + 'T00:00:00');
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -73,7 +58,6 @@ const xAxisConfig = {
     interval: 4,
   },
   '3M': {
-    // Show "Mar 9", "Mar 23" — every 10 trading days
     formatter: (val) => {
       const d = new Date(val + 'T00:00:00');
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -81,7 +65,6 @@ const xAxisConfig = {
     interval: 9,
   },
   '6M': {
-    // Show month name only — "Jan", "Feb"
     formatter: (val) => {
       const d = new Date(val + 'T00:00:00');
       return d.toLocaleDateString('en-US', { month: 'short' });
@@ -89,7 +72,6 @@ const xAxisConfig = {
     interval: 19,
   },
   '1Y': {
-    // Show month name only — "Jan", "Feb"
     formatter: (val) => {
       const d = new Date(val + 'T00:00:00');
       return d.toLocaleDateString('en-US', { month: 'short' });
@@ -97,7 +79,6 @@ const xAxisConfig = {
     interval: 19,
   },
   '2Y': {
-    // Show "Jan '24" — every ~50 trading days ≈ 2 months
     formatter: (val) => {
       const d = new Date(val + 'T00:00:00');
       return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
@@ -105,7 +86,6 @@ const xAxisConfig = {
     interval: 49,
   },
   '5Y': {
-    // Show year only — "2022", "2023"
     formatter: (val) => {
       const d = new Date(val + 'T00:00:00');
       return d.getFullYear().toString();
@@ -113,7 +93,6 @@ const xAxisConfig = {
     interval: 'preserveStartEnd',
   },
   'All': {
-    // Show year only — "2010", "2015"
     formatter: (val) => {
       const d = new Date(val + 'T00:00:00');
       return d.getFullYear().toString();
@@ -126,17 +105,31 @@ const QuotePage = () => {
   const { ticker } = useParams();
   const { openBuyPanel, openSellPanel, refreshKey } = useOutletContext();
 
-  const [quote,   setQuote]   = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [candles, setCandles] = useState([]);
-  const [range,   setRange]   = useState('3M');
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
-  const [hovered, setHovered] = useState(null);
+  const [quote,      setQuote]      = useState(null);
+  const [profile,    setProfile]    = useState(null);
+  const [candles,    setCandles]    = useState([]);
+  const [range,      setRange]      = useState('3M');
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState(null);
+  const [hovered,    setHovered]    = useState(null);
+  const [isInitial,  setIsInitial]  = useState(true);
 
+  // priceFlash — 'up' | 'down' | null
+  // Set when a poll detects a price change. Cleared after 1.5 seconds.
+  // Controls background color on the price block.
+  const [priceFlash, setPriceFlash] = useState(null);
+
+  // prevPriceRef — holds the last known price between polls.
+  // useRef so it does not cause a re-render when updated.
+  const prevPriceRef = useRef(null);
+
+  // ── Initial full load ──────────────────────────────────────────────────────
+  //
+  // Fetches quote, profile, and candles in parallel.
+  // Only runs on ticker change or after a trade (refreshKey).
+  // Profile and candles are not re-fetched on polls — they are stable.
   const loadData = useCallback(async () => {
     if (!ticker) return;
-    // Store so Quote nav pill can navigate back here directly
     localStorage.setItem('lastQuoteTicker', ticker.toUpperCase());
     setLoading(true);
     setError(null);
@@ -150,8 +143,9 @@ const QuotePage = () => {
 
       setQuote(quoteData);
       setProfile(profileData);
-      // Candles arrive oldest first from Stooq — no reversal needed
       setCandles(candleData);
+      prevPriceRef.current = quoteData.price;
+      setIsInitial(false);
     } catch {
       setError('Unable to load quote data. Please try again.');
     } finally {
@@ -163,13 +157,51 @@ const QuotePage = () => {
     loadData();
   }, [loadData]);
 
-  // Re-fetch after a trade completes (refreshKey incremented in Layout)
+  // Re-fetch full data after a trade completes
   useEffect(() => {
     if (refreshKey > 0) loadData();
   }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Slice candles by calendar date for the selected range.
-  // null calendarDays = All range — return entire dataset unfiltered.
+  // ── Background quote poll ──────────────────────────────────────────────────
+  //
+  // Fetches quote only every 15 seconds.
+  // Profile and candles are excluded — they do not change on this cadence.
+  // Only updates state if price actually changed — no unnecessary re-renders.
+  // Triggers flash effect when price changes direction.
+  const pollQuote = useCallback(async () => {
+    if (!ticker) return;
+    try {
+      const quoteData = await getFullQuote(ticker);
+      const newPrice  = quoteData.price;
+      const oldPrice  = prevPriceRef.current;
+
+      // Only update if price changed
+      if (oldPrice !== null && newPrice === oldPrice) return;
+
+      // Determine direction for flash
+      if (oldPrice !== null) {
+        const direction = newPrice > oldPrice ? 'up' : 'down';
+        setPriceFlash(direction);
+
+        // Clear flash after 1.5 seconds
+        setTimeout(() => setPriceFlash(null), 1500);
+      }
+
+      prevPriceRef.current = newPrice;
+      setQuote(quoteData);
+    } catch {
+      // Silent — poll failures do not show errors to the user
+    }
+  }, [ticker]);
+
+  useEffect(() => {
+    if (isInitial) return; // wait for first load before polling
+    const interval = setInterval(pollQuote, 15000);
+    return () => clearInterval(interval);
+  }, [isInitial, pollQuote]);
+
+  // ── Candle slicing ─────────────────────────────────────────────────────────
+
   const visibleCandles = (() => {
     const selected = RANGES.find((r) => r.label === range);
     if (!selected || selected.calendarDays === null) return candles;
@@ -181,15 +213,13 @@ const QuotePage = () => {
     return candles.filter((c) => c.time >= cutoffStr);
   })();
 
-  // Chart line color — green if last close >= first close in visible range
   const chartPositive =
     visibleCandles.length > 1
       ? visibleCandles[visibleCandles.length - 1].close >= visibleCandles[0].close
       : true;
 
   const chartColor = chartPositive ? theme.colors.success : theme.colors.danger;
-
-  const axisConf = xAxisConfig[range] || xAxisConfig['3M'];
+  const axisConf   = xAxisConfig[range] || xAxisConfig['3M'];
 
   // ── Formatters ─────────────────────────────────────────────────────────────
 
@@ -212,6 +242,14 @@ const QuotePage = () => {
     if (value < 0) return theme.colors.danger;
     return theme.colors.textMuted;
   };
+
+  // Flash background color for the price block.
+  // Up = light green tint, Down = light red tint, null = transparent.
+  const flashBackground = priceFlash === 'up'
+    ? theme.colors.successTint
+    : priceFlash === 'down'
+      ? theme.colors.dangerTint
+      : 'transparent';
 
   // ── Chart tooltip ──────────────────────────────────────────────────────────
 
@@ -267,8 +305,17 @@ const QuotePage = () => {
             </div>
           )}
 
+          {/* Price block — flash background transitions on price change */}
           {quote && (
-            <div style={styles.priceBlock}>
+            <div style={{
+              ...styles.priceBlock,
+              backgroundColor: flashBackground,
+              borderRadius:    theme.radius.md,
+              // Smooth fade in/out of the flash background
+              transition:      'background-color 0.3s ease',
+              padding:         `${theme.spacing[1]} ${theme.spacing[2]}`,
+              marginLeft:      `-${theme.spacing[2]}`, // offset padding so text stays aligned
+            }}>
               <span style={styles.price}>{formatCurrency(quote.price)}</span>
               <span style={{ ...styles.change, color: pnlColor(quote.change) }}>
                 {quote.change >= 0 ? '+' : ''}{formatCurrency(quote.change)}

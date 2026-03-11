@@ -52,7 +52,7 @@
  *  - Direct axios calls — those belong in the provider files
  */
 
-const { get, set } = require('./cache/redisClient')
+const { get, set, sadd, expireat } = require('./cache/redisClient')
 const stooq = require('./providers/stooqProvider')
 const { isMarketOpen: calcMarketOpen } = require('./utils/marketHours')
 const { searchTickers: searchInMemory } = require('./utils/tickerSearch')
@@ -189,9 +189,12 @@ const getPrice = async (ticker) => {
     timestamp:     raw.timestamp,
   }
 
-  // Cache full quote object so getQuote() reuses it without another Stooq call
-  await set(`quote:${normalized}`, JSON.stringify(quote), TTL_PRICE)
-  await set(cacheKey, raw.price, TTL_PRICE)
+  // After hours: cache until next market open — one Stooq call per ticker per session
+  // During hours: 90 second TTL — price updater keeps it fresh
+  const ttl = marketOpen ? TTL_PRICE : secondsUntilNextMarketOpen()
+
+  await set(`quote:${normalized}`, JSON.stringify(quote), ttl)
+  await set(cacheKey, raw.price, ttl)
 
   return raw.price
 }
@@ -250,9 +253,20 @@ const getQuote = async (ticker) => {
     timestamp:     raw.timestamp,
   }
 
-  // Cache both quote object and price number
-  await set(cacheKey,              JSON.stringify(quote), TTL_PRICE)
-  await set(`price:${normalized}`, raw.price,             TTL_PRICE)
+  // After hours: cache until next market open — one Stooq call per ticker per session
+  // During hours: 90 second TTL — price updater keeps it fresh
+  const ttl = marketOpen ? TTL_PRICE : secondsUntilNextMarketOpen()
+
+  await set(cacheKey,              JSON.stringify(quote), ttl)
+  await set(`price:${normalized}`, raw.price,             ttl)
+
+  // Add to watched set so price updater includes this ticker in its batch.
+  // Any user visiting this quote page warms the ticker for all subsequent users.
+  // Set expires at next market open — clean slate each trading day.
+  if (marketOpen) {
+    await sadd('watched:tickers', normalized)
+    await expireat('watched:tickers', secondsUntilNextMarketOpen())
+  }
 
   return { ticker: normalized, ...quote }
 }

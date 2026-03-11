@@ -44,32 +44,60 @@ const SummaryPage = () => {
   const [portfolio, setPortfolio] = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState(null);
+  const [isInitial, setIsInitial] = useState(true);
 
   // loadData()
   //
   // Fetches wallet and portfolio in parallel.
   // Both are independent — Promise.all() fires both requests simultaneously.
   // useCallback keeps the reference stable across renders.
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [walletData, portfolioData] = await Promise.all([
         fetchMyWallet(),
         fetchMyPortfolio(),
       ]);
-      setWallet(walletData);
-      setPortfolio(portfolioData);
+
+      // Silent poll — only update state if a key value changed.
+      // Prevents unnecessary re-renders when price has not moved.
+      if (silent) {
+        setWallet(prev => {
+          if (!prev) return walletData;
+          return prev.balance !== walletData.balance ? walletData : prev;
+        });
+        setPortfolio(prev => {
+          if (!prev) return portfolioData;
+          const changed =
+            prev.summary.totalMarketValue !== portfolioData.summary.totalMarketValue ||
+            prev.summary.totalDayChange   !== portfolioData.summary.totalDayChange;
+          return changed ? portfolioData : prev;
+        });
+      } else {
+        setWallet(walletData);
+        setPortfolio(portfolioData);
+        setIsInitial(false);
+      }
+
       setError(null);
     } catch {
-      setError('Failed to load dashboard data. Please refresh.');
+      if (!silent) setError('Failed to load dashboard data. Please refresh.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
+  // Initial load + re-fetch after trade
   useEffect(() => {
     loadData();
   }, [loadData, refreshKey]);
+
+  // Background poll every 15s — silent, only updates if data changed
+  useEffect(() => {
+    if (isInitial) return; // don't start polling until first load completes
+    const interval = setInterval(() => loadData(true), 15000);
+    return () => clearInterval(interval);
+  }, [isInitial, loadData]);
 
 
   // ── Derived values ───────────────────────────────────────────────────────────

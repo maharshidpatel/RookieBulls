@@ -211,4 +211,62 @@ const getHistorical = async (ticker) => {
   }
 }
 
+// ── getPriceBatch(tickers) ────────────────────────────────────────────────────
+//
+// Fetches current delayed quotes for multiple tickers in a single Stooq request.
+// Stooq accepts comma-separated symbols in one URL.
+// Used exclusively by the price updater — reduces daily call count from
+// (tickers × 390) to 390 regardless of how many tickers are tracked.
+//
+// Returns:
+//   Map of ticker → { price, high, low, open, timestamp }
+//
+// Throws:
+//   503 — Stooq unreachable
+const getPriceBatch = async (tickers) => {
+  if (!tickers.length) return new Map()
+
+  const symbols  = tickers.map(toStooqSymbol).join(',')
+  const url      = `https://stooq.com/q/l/?s=${symbols}&f=sd2t2ohlcv&h&e=csv`
+
+  try {
+    const response = await axios.get(url, { timeout: 15000 })
+
+    if (isRateLimited(response.data)) {
+      const error = new Error('Stooq daily request limit reached.')
+      error.statusCode = 429
+      throw error
+    }
+
+    const rows   = parseCSV(response.data)
+    const result = new Map()
+
+    for (const row of rows) {
+      if (!isValidRow(row)) continue
+
+      // Stooq batch response includes Symbol column
+      const ticker = row.Symbol?.replace('.US', '').toUpperCase()
+      if (!ticker) continue
+
+      result.set(ticker, {
+        price:     parseFloat(row.Close),
+        high:      parseFloat(row.High),
+        low:       parseFloat(row.Low),
+        open:      parseFloat(row.Open),
+        timestamp: new Date(`${row.Date}T${row.Time}`).toISOString(),
+      })
+    }
+
+    return result
+
+  } catch (err) {
+    if (err.statusCode) throw err
+    const error = new Error(`Stooq batch fetch failed: ${err.message}`)
+    error.statusCode = 503
+    throw error
+  }
+}
+
+module.exports = { getPrice, getHistorical, getPriceBatch }
+
 module.exports = { getPrice, getHistorical }
