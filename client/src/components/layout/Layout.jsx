@@ -38,10 +38,10 @@ const Layout = () => {
   // ticker: string when opened from a specific stock context (QuotePage, Holdings row).
   // null when opened from SecondNav — the panel shows a TickerSearch input.
   //
-  const [buyPanel, setBuyPanel] = useState({ open: false, ticker: null });
+  const [buyPanel, setBuyPanel] = useState({ open: false, ticker: null, currentPrice: null });
 
   // ── Sell panel state — same shape as buyPanel ───────────────────────────────
-  const [sellPanel, setSellPanel] = useState({ open: false, ticker: null });
+ const [sellPanel, setSellPanel] = useState({ open: false, ticker: null, availableShares: null });
 
   // ── Get Quote popup ─────────────────────────────────────────────────────────
   const [quotePopupOpen, setQuotePopupOpen] = useState(false);
@@ -75,16 +75,16 @@ const Layout = () => {
   // Default null: means the panel opens with an empty TickerSearch.
   //
 
-  const openBuyPanel = (ticker = null) => {
-    setSellPanel({ open: false, ticker: null });
+  const openBuyPanel = (ticker = null, currentPrice = null) => {
+    setSellPanel({ open: false, ticker: null, availableShares: null });
     setQuotePopupOpen(false);
-    setBuyPanel({ open: true, ticker });
+    setBuyPanel({ open: true, ticker, currentPrice });
   };
 
-  const openSellPanel = (ticker = null) => {
+  const openSellPanel = (ticker = null, availableShares = null) => {
     setBuyPanel({ open: false, ticker: null });
     setQuotePopupOpen(false);
-    setSellPanel({ open: true, ticker });
+    setSellPanel({ open: true, ticker, availableShares });
   };
 
   const openQuotePopup = () => {
@@ -148,6 +148,8 @@ const Layout = () => {
         <TradePanel
           initialOperation={buyPanel.open ? 'buy' : 'sell'}
           ticker={buyPanel.open ? buyPanel.ticker : sellPanel.ticker}
+          currentPrice={buyPanel.currentPrice}
+          availableShares={sellPanel.availableShares}
           onReview={setOrderData}
           onClose={closeAll}
         />

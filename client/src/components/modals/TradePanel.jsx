@@ -24,7 +24,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { getFullQuote } from '../../services/market';
+import { getTickerPrice } from '../../services/market';
 import { fetchMyWallet } from '../../services/wallet';
 import { fetchMyPortfolio } from '../../services/portfolio';
 import TickerSearch from '../TickerSearch';
@@ -49,7 +49,14 @@ const LockIcon = () => (
   </svg>
 )
 
-const TradePanel = ({ initialOperation = 'buy', ticker: initialTicker, onReview, onClose }) => {
+const TradePanel = ({ 
+  initialOperation = 'buy', 
+  ticker: initialTicker,
+  currentPrice: initialCurrentPrice = null,
+  availableShares: initialAvailableShares = null,
+  onReview,
+  onClose
+}) => {
 
   const [operation,       setOperation]       = useState(initialOperation);
   const [activeTicker,    setActiveTicker]    = useState(initialTicker || null);
@@ -75,25 +82,35 @@ const TradePanel = ({ initialOperation = 'buy', ticker: initialTicker, onReview,
       setLoadingPrice(true);
       try {
         if (operation === 'buy') {
-          const [quoteData, walletData] = await Promise.all([
-            getFullQuote(activeTicker),
-            fetchMyWallet(),
-          ]);
-          setQuote(quoteData);
-          setWalletBalance(walletData.balance);
+          if (initialCurrentPrice !== null) {
+            const walletData = await fetchMyWallet();
+            setQuote({ price: initialCurrentPrice });
+            setWalletBalance(walletData.balance);
+          } else {
+            const [quoteData, walletData] = await Promise.all([
+              getTickerPrice(activeTicker),
+              fetchMyWallet(),
+            ]);
+            setQuote(quoteData);
+            setWalletBalance(walletData.balance);
+          }
           setAvailableShares(null);
         } else {
-          const [quoteData, portfolioData] = await Promise.all([
-            getFullQuote(activeTicker),
-            fetchMyPortfolio(),
-          ]);
-          setQuote(quoteData);
-          const position = portfolioData.positions.find(
-            (p) => p.ticker === activeTicker
-          );
-          setAvailableShares(position ? position.quantity : 0);
-          setWalletBalance(null);
-        }
+            const [quoteData, portfolioData] = await Promise.all([
+              getTickerPrice(activeTicker),
+              initialAvailableShares === null ? fetchMyPortfolio() : Promise.resolve(null),
+            ]);
+            setQuote(quoteData);
+            if (initialAvailableShares !== null) {
+              setAvailableShares(initialAvailableShares);
+            } else {
+              const position = portfolioData.positions.find(
+                (p) => p.ticker === activeTicker
+              );
+              setAvailableShares(position ? position.quantity : 0);
+            }
+            setWalletBalance(null);
+          }
       } catch {
         setPriceError('Unable to fetch data. Please try again.');
       } finally {
@@ -102,7 +119,7 @@ const TradePanel = ({ initialOperation = 'buy', ticker: initialTicker, onReview,
     };
 
     load();
-  }, [activeTicker, operation]);
+  }, [activeTicker, operation, initialAvailableShares, initialCurrentPrice]);
 
   // Reset quantity when ticker or operation changes
   useEffect(() => {

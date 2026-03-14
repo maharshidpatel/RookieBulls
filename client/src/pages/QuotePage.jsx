@@ -135,8 +135,10 @@ const QuotePage = () => {
     setError(null);
 
     try {
-      const [quoteData, profileData, candleData] = await Promise.all([
-        getFullQuote(ticker),
+      // Load quote first — resolveQuote() caches candles as a side effect.
+      // Profile and candles then fire in parallel — candles is always a cache hit.
+      const quoteData = await getFullQuote(ticker);
+      const [profileData, candleData] = await Promise.all([
         getStockProfile(ticker),
         getCandles(ticker),
       ]);
@@ -229,7 +231,9 @@ const QuotePage = () => {
     }).format(value);
 
   const formatPercent = (value) =>
-    `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+  value === null || value === undefined
+    ? '--'
+    : `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 
   const formatVolume = (value) => {
     if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
@@ -238,6 +242,7 @@ const QuotePage = () => {
   };
 
   const pnlColor = (value) => {
+    if (value === null || value === undefined) return theme.colors.textMuted;
     if (value > 0) return theme.colors.success;
     if (value < 0) return theme.colors.danger;
     return theme.colors.textMuted;
@@ -318,7 +323,10 @@ const QuotePage = () => {
             }}>
               <span style={styles.price}>{formatCurrency(quote.price)}</span>
               <span style={{ ...styles.change, color: pnlColor(quote.change) }}>
-                {quote.change >= 0 ? '+' : ''}{formatCurrency(quote.change)}
+                {quote.change !== null
+                  ? `${quote.change >= 0 ? '+' : ''}${formatCurrency(quote.change)}`
+                  : '--'
+                }
               </span>
               <span style={{ ...styles.changePct, color: pnlColor(quote.changePercent) }}>
                 ({formatPercent(quote.changePercent)})
@@ -361,7 +369,7 @@ const QuotePage = () => {
         <div style={styles.statsRow}>
           {[
             { label: 'Open',       value: formatCurrency(quote.open)     },
-            { label: 'Prev Close', value: formatCurrency(quote.prevClose) },
+            { label: 'Prev Close', value: quote.prevClose !== null ? formatCurrency(quote.prevClose) : '--' },
             { label: 'Day High',   value: formatCurrency(quote.high),  color: theme.colors.success },
             { label: 'Day Low',    value: formatCurrency(quote.low),   color: theme.colors.danger  },
           ].map(({ label, value, color }) => (

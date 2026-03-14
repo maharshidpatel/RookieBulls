@@ -272,7 +272,7 @@ const HoldingsPage = () => {
                           ...styles.buyBtn,
                           ...(isBuyHovered ? styles.buyBtnHover : {}), 
                         }}
-                        onClick={() => openBuyPanel(position.ticker)}
+                        onClick={() => openBuyPanel(position.ticker, position.currentPrice)}
                         onMouseEnter={() => setHoveredBtn({ rowIndex: index, operation: 'buy' })}
                         onMouseLeave={() => setHoveredBtn(null)}
                       >
@@ -285,7 +285,7 @@ const HoldingsPage = () => {
                           ...(isSellHovered ? styles.sellBtnHover : {}),
                           marginLeft: theme.spacing[3],
                         }}
-                        onClick={() => openSellPanel(position.ticker)}
+                        onClick={() => openSellPanel(position.ticker, position.quantity)}
                         onMouseEnter={() => setHoveredBtn({ rowIndex: index, operation: 'sell' })}
                         onMouseLeave={() => setHoveredBtn(null)}
                       >

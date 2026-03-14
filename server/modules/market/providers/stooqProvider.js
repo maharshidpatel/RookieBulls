@@ -10,39 +10,65 @@
  *  No Redis, no caching, no business logic, no HTTP handlers.
  *  This file only knows how to call Stooq and parse the response.
  *
- * Stooq endpoints used:
- *  Single quote:
+ * ─────────────────────────────────────────────────────────────────────────
+ * THREE FUNCTIONS — THREE DIFFERENT PURPOSES:
+ *
+ *  getPrice(ticker) — CSV, single ticker
+ *    Cold start fallback only.
+ *    Called by service.js getPrice() when price:TICKER is cold.
+ *    Only reached on absolute first server run with zero positions.
+ *    After first price updater tick, price:TICKER is always warm
+ *    and this function is never called again in normal operation.
+ *    Returns: { price, high, low, open, timestamp }
+ *
+ *  getHistorical(ticker) — CSV, full history
+ *    Primary data source for resolveQuote().
+ *    Called on QuotePage visit when quote:TICKER is cold or prevClose: null.
+ *    Returns complete daily OHLCV array (IPO to today).
+ *    Last entry = current delayed price (Stooq updates in real time).
+ *    Second-to-last entry = prevClose (yesterday's close).
+ *    One call provides: current price, OHLC, prevClose, full chart data.
+ *    Cached until next market open — called at most once per ticker per day.
+ *    Returns: [{ time, open, high, low, close, volume }] oldest first
+ *
+ *  getPriceBatch(tickers) — JSON, multiple tickers
+ *    Called by priceUpdater.js every 60 seconds during market hours.
+ *    Single HTTP request for ALL held + watched tickers combined.
+ *    390 calls/day regardless of ticker count.
+ *    JSON format used (not CSV) — confirmed working with + separator.
+ *    CSV batch was unreliable — crammed all tickers into one row.
+ *    Returns: Map of ticker → { price, high, low, open, timestamp }
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * STOOQ ENDPOINTS:
+ *
+ *  Single quote (CSV):
  *    https://stooq.com/q/l/?s=aapl.us&f=sd2t2ohlcv&h&e=csv
- *  Historical daily (full history, no date range):
+ *
+ *  Full history (CSV):
  *    https://stooq.com/q/d/l/?s=aapl.us&i=d
+ *    No date range — Stooq returns all available data from IPO.
+ *    Excludes weekends and holidays automatically.
  *
- * Ticker format:
- *  Stooq requires lowercase ticker with .us suffix — AAPL → aapl.us
+ *  Batch quote (JSON):
+ *    https://stooq.com/q/l/?s=aapl.us+msft.us+tsla.us&f=sd2t2ohlcv&h&e=json
+ *    + separator confirmed working. Comma separator does not work.
  *
- * Request strategy — strictly 1 Stooq request per function per call:
+ * ─────────────────────────────────────────────────────────────────────────
+ * TICKER FORMAT:
+ *  Stooq requires lowercase with .us suffix — AAPL → aapl.us
  *
- *  getPrice(ticker):
- *    Single quote request only.
- *    Returns raw OHLC fields — no prevClose, no change, no changePercent.
- *    All derived fields (prevClose, change, changePercent) are calculated
- *    in service.js using the candles cache — no second Stooq call needed.
+ * RATE LIMIT HANDLING:
+ *  Stooq returns plain text "Exceeded the daily hits limit" on IP ban.
+ *  All three functions detect this and throw 429.
+ *  Cache strategy keeps total daily calls well within limits:
+ *    getHistorical: at most once per ticker per trading day
+ *    getPriceBatch: 390 fixed calls/day regardless of ticker count
+ *    getPrice:      near zero in production
  *
- *  getHistorical(ticker):
- *    Full history request — no date range, Stooq returns all available data.
- *    Called by service.js only on cache miss.
- *    Cache TTL is set to expire at next market open so the graph is always
- *    fresh at the start of each trading session.
- *    After caching, all chart ranges (5D/1M/3M/6M/1Y/2Y/5Y/All) are served
- *    from Redis — zero additional Stooq calls per trading day per ticker.
- *
- * Rate limit handling:
- *  Stooq returns plain text "Exceeded the daily hits limit" when the IP
- *  has made too many requests. Both functions detect this and throw 429.
- *  The Redis cache strategy ensures getHistorical is called at most once
- *  per ticker per trading day, keeping total requests well within limits.
- *
- * Data disclaimer:
+ * DATA DISCLAIMER:
  *  Stooq provides delayed data (~15 minutes behind exchange).
+ *  Platform adjusted to 9:45 AM open / 4:15 PM close to match.
  *  All public-facing pages must label data as delayed.
  */
 
@@ -83,19 +109,48 @@ const isValidRow = (row) =>
 
 /**
  * isRateLimited(responseData)
- * Returns true if Stooq returned a rate limit message instead of CSV.
+ * Returns true if Stooq returned a rate limit message instead of data.
+ * Applies to both CSV and JSON responses.
  */
 const isRateLimited = (data) =>
   typeof data === 'string' && data.includes('Exceeded')
 
+// ── Request counters ──────────────────────────────────────────────────────
+//
+// Tracks Stooq calls since server start — resets on restart.
+// Two counters:
+//   quote   — getPrice() + getPriceBatch() calls
+//   history — getHistorical() calls
+//
+// Expected daily values in normal operation:
+//   quote:   390  (1 batch/min × 390 market minutes)
+//   history: ~10  (1 per unique ticker, QuotePage first visit only)
+//   total:   ~400
+//
+// If quote counter grows beyond 395/day — investigate unexpected getPrice() calls.
+// If history counter grows beyond unique ticker count — cache TTL may be wrong.
+const counters = {
+  quote:   0,
+  history: 0,
+}
+
+const logCounters = () => {
+  console.log(
+    `Stooq counters — quotes: ${counters.quote}, history: ${counters.history}` +
+    ` (total: ${counters.quote + counters.history})`
+  )
+}
+
 // ── getPrice(ticker) ──────────────────────────────────────────────────────
 //
-// Fetches the current delayed quote for a single ticker.
-// One Stooq request per call — quote endpoint only.
+// Fetches current delayed quote for a single ticker via CSV.
+// Cold start fallback only — called by service.js getPrice() when
+// price:TICKER is cold (first ever run, zero positions in DB).
+// After first price updater tick, price:TICKER is warm and this
+// function is never reached again in normal operation.
 //
 // Does NOT calculate prevClose, change, or changePercent.
-// Those are derived in service.js using the candles Redis cache,
-// which avoids any additional Stooq requests.
+// resolveQuote() uses getHistorical() for all derived fields.
 //
 // Returns:
 //  { price, high, low, open, timestamp }
@@ -108,6 +163,9 @@ const getPrice = async (ticker) => {
   const quoteUrl = `https://stooq.com/q/l/?s=${symbol}&f=sd2t2ohlcv&h&e=csv`
 
   try {
+    counters.quote++
+    logCounters()
+
     const response  = await axios.get(quoteUrl, { timeout: 8000 })
     const quoteRows = parseCSV(response.data)
 
@@ -137,28 +195,28 @@ const getPrice = async (ticker) => {
 
 // ── getHistorical(ticker) ─────────────────────────────────────────────────
 //
-// Fetches the complete daily OHLCV history for a ticker from Stooq.
-// No date range parameters — Stooq returns all available data.
+// Fetches complete daily OHLCV history for a ticker via CSV.
+// Primary data source for resolveQuote() in service.js.
 //
-// This is called by service.js only on a Redis cache miss.
-// The result is cached until the next market open (9:30 AM ET).
-// All chart ranges are sliced from this single cached dataset:
-//   5D  → last 7 calendar days of rows
-//   1M  → last 30 calendar days of rows
-//   3M  → last 90 calendar days of rows
-//   6M  → last 180 calendar days of rows
-//   1Y  → last 365 calendar days of rows
-//   2Y  → last 730 calendar days of rows
-//   5Y  → last 1825 calendar days of rows
-//   All → entire array
+// Why one call covers everything:
+//   Last entry     = current delayed price, OHLC (updates in real time)
+//   Second-to-last = prevClose (yesterday's completed session)
+//   Full array     = cached for chart, all ranges sliced client-side
 //
-// The second-to-last row's close is also used by service.js as prevClose
-// when the market is open — no separate history request needed for that.
+// Called by resolveQuote() in two situations:
+//   1. quote:TICKER cold (new ticker, cache miss)
+//   2. quote:TICKER exists but prevClose: null (first day, new position)
+//
+// Cached until next market open (9:45 AM ET with 15min delay applied).
+// At most 1 call per ticker per trading day.
+//
+// Chart ranges served from this single cached dataset:
+//   5D → 7 calendar days, 1M → 30, 3M → 90, 6M → 180,
+//   1Y → 365, 2Y → 730, 5Y → 1825, All → entire array
 //
 // Returns:
-//  Array of candle objects, oldest first (Stooq's natural order):
-//  [{ time, open, high, low, close, volume }]
-//  time is YYYY-MM-DD string.
+//  [{ time, open, high, low, close, volume }] — oldest first (Stooq natural order)
+//  time is YYYY-MM-DD string
 //
 // Throws:
 //  429 — Stooq daily request limit exceeded
@@ -166,15 +224,14 @@ const getPrice = async (ticker) => {
 //  503 — Stooq unreachable or request timed out
 const getHistorical = async (ticker) => {
   const symbol = toStooqSymbol(ticker)
-
-  // No d1/d2 date range — returns full history from IPO to today.
-  // Stooq excludes non-trading days (weekends, holidays) automatically.
-  const url = `https://stooq.com/q/d/l/?s=${symbol}&i=d`
+  const url    = `https://stooq.com/q/d/l/?s=${symbol}&i=d`
 
   try {
+    counters.history++
+    logCounters()
+
     const response = await axios.get(url, { timeout: 20000 })
 
-    // Detect rate limit before attempting CSV parse
     if (isRateLimited(response.data)) {
       const error = new Error('Stooq daily request limit reached. Try again at next market open.')
       error.statusCode = 429
@@ -189,9 +246,6 @@ const getHistorical = async (ticker) => {
       throw error
     }
 
-    // Map to clean candle objects.
-    // Stooq returns oldest first — preserved here.
-    // QuotePage receives oldest-first and passes directly to recharts.
     return rows
       .filter(isValidRow)
       .map(row => ({
@@ -211,49 +265,73 @@ const getHistorical = async (ticker) => {
   }
 }
 
-// ── getPriceBatch(tickers) ────────────────────────────────────────────────────
+// ── getPriceBatch(tickers) ────────────────────────────────────────────────
 //
-// Fetches current delayed quotes for multiple tickers in a single Stooq request.
-// Stooq accepts comma-separated symbols in one URL.
-// Used exclusively by the price updater — reduces daily call count from
-// (tickers × 390) to 390 regardless of how many tickers are tracked.
+// Fetches current delayed quotes for multiple tickers in a single request.
+// Called by priceUpdater.js every 60 seconds during market hours.
+//
+// Uses JSON format with + separator (CSV batch was unreliable —
+// Stooq crammed all tickers into a single row).
+// JSON returns a clean array with one object per ticker.
+//
+// Single HTTP request regardless of ticker count:
+//   10 tickers  = 1 request
+//   100 tickers = 1 request
+//   Fixed 390 calls/day (1 per minute × 390 market minutes)
 //
 // Returns:
 //   Map of ticker → { price, high, low, open, timestamp }
+//   Missing tickers (no data from Stooq) are excluded from the map.
 //
 // Throws:
-//   503 — Stooq unreachable
+//   429 — Stooq daily request limit reached
+//   503 — Stooq unreachable or unexpected response format
 const getPriceBatch = async (tickers) => {
   if (!tickers.length) return new Map()
 
-  const symbols  = tickers.map(toStooqSymbol).join(',')
-  const url      = `https://stooq.com/q/l/?s=${symbols}&f=sd2t2ohlcv&h&e=csv`
+  const symbols = tickers.map(toStooqSymbol).join('+')
+  const url     = `https://stooq.com/q/l/?s=${symbols}&f=sd2t2ohlcv&h&e=json`
 
   try {
-    const response = await axios.get(url, { timeout: 15000 })
+    counters.quote++
+    logCounters()
 
-    if (isRateLimited(response.data)) {
+    const response = await axios.get(url, { timeout: 15000 })
+    const data     = response.data
+
+    // Rate limit returns plain text even on JSON endpoint
+    if (typeof data === 'string' && isRateLimited(data)) {
       const error = new Error('Stooq daily request limit reached.')
       error.statusCode = 429
       throw error
     }
 
-    const rows   = parseCSV(response.data)
+    if (!data.symbols || !Array.isArray(data.symbols)) {
+      const error = new Error('Stooq batch returned unexpected format')
+      error.statusCode = 503
+      throw error
+    }
+
     const result = new Map()
 
-    for (const row of rows) {
-      if (!isValidRow(row)) continue
+    for (const item of data.symbols) {
+      if (!item.close || item.close === 0) continue
 
-      // Stooq batch response includes Symbol column
-      const ticker = row.Symbol?.replace('.US', '').toUpperCase()
+      // Strip .US suffix — AAPL.US → AAPL
+      const ticker = item.symbol?.replace(/\.us$/i, '').toUpperCase()
       if (!ticker) continue
 
+      const rawTimestamp = new Date(`${item.date}T${item.time}`)
+      const timestamp    = isNaN(rawTimestamp.getTime())
+        ? new Date().toISOString()
+        : rawTimestamp.toISOString()
+
       result.set(ticker, {
-        price:     parseFloat(row.Close),
-        high:      parseFloat(row.High),
-        low:       parseFloat(row.Low),
-        open:      parseFloat(row.Open),
-        timestamp: new Date(`${row.Date}T${row.Time}`).toISOString(),
+        price:     item.close,
+        high:      item.high,
+        low:       item.low,
+        open:      item.open,
+        timestamp,
       })
     }
 
@@ -267,6 +345,4 @@ const getPriceBatch = async (tickers) => {
   }
 }
 
-module.exports = { getPrice, getHistorical, getPriceBatch }
-
-module.exports = { getPrice, getHistorical }
+module.exports = { getPrice, getHistorical, getPriceBatch, counters }

@@ -81,3 +81,16 @@ export const getCandles = async (ticker) => {
   const response = await axios.get(`/api/market/candles/${ticker}`);
   return response.data.candles;
 };
+
+// getTickerPrice(ticker)
+//
+// Calls GET /api/market/price/:ticker
+// Returns { ticker, price }
+//
+// Used by TradePanel only — buy and sell panels need current price only.
+// Reads price:TICKER from Redis — always warm after first updater tick.
+// Never triggers resolveQuote() or history calls.
+export const getTickerPrice = async (ticker) => {
+  const response = await axios.get(`/api/market/price/${ticker}`);
+  return response.data;
+};
