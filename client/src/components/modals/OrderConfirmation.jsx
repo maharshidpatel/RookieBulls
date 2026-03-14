@@ -27,7 +27,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { getFullQuote } from '../../services/market';
+import { getTickerPrice } from '../../services/market';
 import { executeBuy, executeSell } from '../../services/trade';
 import theme from '../../styles/theme';
 
@@ -44,7 +44,7 @@ const OrderConfirmation = ({ data, onExecuted, onCancel }) => {
   useEffect(() => {
     const refresh = async () => {
       try {
-        const quote = await getFullQuote(ticker);
+        const quote = await getTickerPrice(ticker);
         setCurrentPrice(quote.price);
       } catch {
         // Non-fatal — panel price is still valid enough to show
