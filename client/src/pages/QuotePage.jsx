@@ -11,7 +11,11 @@
  * Chart ranges: 5D, 1M, 3M, 6M, 1Y, 2Y, 5Y, All
  *   All served from a single full-history candle dataset fetched on load.
  *   No extra API calls when switching ranges — all slicing is done client-side.
- *   Cache expires at next market open (9:30 AM ET).
+ *   Cache expires at next market open (9:45 AM ET).
+ *
+ * Chart — Option B (current price appended):
+ *   The last candle's close is replaced with quote.price on every poll.
+ *   Chart always ends at the current delayed price — no extra Stooq call.
  *
  * Does NOT belong here:
  *   Trade execution, wallet data, portfolio calculations.
@@ -42,63 +46,287 @@ const RANGES = [
   { label: 'All', calendarDays: null },
 ];
 
+// xAxisConfig — formatter, interval, and minTickGap per range.
+//
+// interval:
+//   number            — show every Nth tick
+//   'preserveStartEnd' — always show first and last tick (recharts built-in)
+//
+// minTickGap:
+//   minimum pixels between ticks — prevents overlap on dense ranges.
+//   5Y and All use this instead of fixed interval for clean auto-spacing.
+//
+// Format decisions:
+//   5D         — "Tue, Mar 10"  (weekday + date — 5 points, show all)
+//   1M, 3M     — "Feb 23"       (month + day)
+//   6M, 1Y, 2Y — "Jun 2024"     (month + full 4-digit year)
+//   5Y, All    — "2024"         (year only — minTickGap prevents overlap)
 const xAxisConfig = {
   '5D': {
     formatter: (val) => {
       const d = new Date(val + 'T00:00:00');
       return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     },
-    interval: 0,
+    interval:    0,
+    minTickGap:  0,
   },
   '1M': {
     formatter: (val) => {
       const d = new Date(val + 'T00:00:00');
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     },
-    interval: 4,
+    interval:   4,
+    minTickGap: 5,
   },
   '3M': {
     formatter: (val) => {
       const d = new Date(val + 'T00:00:00');
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     },
-    interval: 9,
+    interval:   9,
+    minTickGap: 5,
   },
   '6M': {
     formatter: (val) => {
       const d = new Date(val + 'T00:00:00');
-      return d.toLocaleDateString('en-US', { month: 'short' });
+      return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
     },
-    interval: 19,
+    interval:   19,
+    minTickGap: 10,
   },
   '1Y': {
     formatter: (val) => {
       const d = new Date(val + 'T00:00:00');
-      return d.toLocaleDateString('en-US', { month: 'short' });
+      return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
     },
-    interval: 19,
+    interval:   19,
+    minTickGap: 10,
   },
   '2Y': {
     formatter: (val) => {
       const d = new Date(val + 'T00:00:00');
-      return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
     },
-    interval: 49,
+    interval:   49,
+    minTickGap: 10,
   },
   '5Y': {
     formatter: (val) => {
       const d = new Date(val + 'T00:00:00');
-      return d.getFullYear().toString();
+      return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
     },
-    interval: 'preserveStartEnd',
+    interval:   125,  // ~6 months of trading days → ~10 labels over 5 years
+    minTickGap: 50,
   },
   'All': {
     formatter: (val) => {
       const d = new Date(val + 'T00:00:00');
       return d.getFullYear().toString();
     },
-    interval: 'preserveStartEnd',
+    interval:   'preserveStartEnd',
+    minTickGap: 60,
   },
+};
+
+// ── OhlcChart — candlestick chart for 5D range ────────────────────────────
+//
+// Pure SVG component — renders full OHLC candlesticks.
+// ResponsiveContainer passes width as prop automatically.
+// Each candle: wick (high-low line) + body (open-close rect).
+// Hover shows OHLC tooltip. Current price shown as dashed reference line.
+const OhlcChart = ({ candles, width = 600, height = 280 }) => {
+  const [hoveredIdx, setHoveredIdx] = useState(null);
+
+  if (!candles || candles.length === 0) return null;
+
+  const margin = { top: 10, right: 40, bottom: 32, left: 64 };
+  const chartW  = Math.max(width - margin.left - margin.right, 1);
+  const chartH  = height - margin.top - margin.bottom;
+
+  // Price domain — 12% padding above and below
+  const prices = candles.flatMap(c => [c.high, c.low]);
+  const rawMin = Math.min(...prices);
+  const rawMax = Math.max(...prices);
+  const pad    = (rawMax - rawMin) * 0.12 || rawMax * 0.01;
+  const domMin = rawMin - pad;
+  const domMax = rawMax + pad;
+
+  const priceToY = (p) =>
+    margin.top + chartH * (1 - (p - domMin) / (domMax - domMin));
+
+  // Candle layout
+  const slotW   = chartW / candles.length;
+  const bodyW   = Math.max(slotW * 0.5, 6);
+  const candleX = (i) => margin.left + slotW * i + slotW / 2;
+
+  // Y axis — 5 evenly spaced ticks
+  const yTicks = Array.from({ length: 5 }, (_, i) =>
+    domMin + (domMax - domMin) * (i / 4)
+  );
+
+  const handleMouseMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const mx   = e.clientX - rect.left - margin.left;
+    const idx  = Math.floor(mx / slotW);
+    setHoveredIdx(idx >= 0 && idx < candles.length ? idx : null);
+  };
+
+  const fmt = (v) =>
+    new Intl.NumberFormat('en-US', {
+      style: 'currency', currency: 'USD', minimumFractionDigits: 2,
+    }).format(v);
+
+  // Flip tooltip to left side if near right edge
+  const tooltipX = (i) => {
+    const cx = candleX(i);
+    return cx + slotW / 2 + 8 > width - margin.right - 130
+      ? cx - 140
+      : cx + 10;
+  };
+
+  return (
+    <svg
+      width={width}
+      height={height}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => setHoveredIdx(null)}
+      style={{ display: 'block' }}
+    >
+      {/* Y axis gridlines + labels */}
+      {yTicks.map((price, i) => {
+        const ty = priceToY(price);
+        return (
+          <g key={i}>
+            <line
+              x1={margin.left} y1={ty}
+              x2={margin.left + chartW} y2={ty}
+              stroke={theme.colors.border}
+              strokeDasharray="3 3"
+              strokeWidth={1}
+            />
+            <text
+              x={margin.left - 6} y={ty + 4}
+              textAnchor="end"
+              fontSize={11}
+              fill={theme.colors.textMuted}
+            >
+              ${price.toFixed(0)}
+            </text>
+          </g>
+        );
+      })}
+
+      {/* Candles */}
+      {candles.map((c, i) => {
+        const isUp  = c.close >= c.open;
+        const color = isUp ? theme.colors.success : theme.colors.danger;
+        const cx    = candleX(i);
+        const yHigh = priceToY(c.high);
+        const yLow  = priceToY(c.low);
+        const yTop  = priceToY(Math.max(c.open, c.close));
+        const yBot  = priceToY(Math.min(c.open, c.close));
+        const bodyH = Math.max(yBot - yTop, 2);
+
+        const d     = new Date(c.time + 'T00:00:00');
+        const label = d.toLocaleDateString('en-US', {
+          weekday: 'short', month: 'short', day: 'numeric',
+        });
+
+        return (
+          <g key={c.time}>
+            {/* Wick — high to low */}
+            <line
+              x1={cx} y1={yHigh} x2={cx} y2={yLow}
+              stroke={color} strokeWidth={1.5}
+            />
+            {/* Body — open to close */}
+            <rect
+              x={cx - bodyW / 2} y={yTop}
+              width={bodyW} height={bodyH}
+              fill={color}
+              opacity={hoveredIdx === i ? 1 : 0.85}
+            />
+            {/* X axis label */}
+            <text
+              x={cx}
+              y={height - margin.bottom + 18}
+              textAnchor="middle"
+              fontSize={11}
+              fill={hoveredIdx === i
+                ? theme.colors.textPrimary
+                : theme.colors.textMuted}
+            >
+              {label}
+            </text>
+          </g>
+        );
+      })}
+
+      {/* Hover crosshair + OHLC tooltip */}
+      {hoveredIdx !== null && (() => {
+        const c    = candles[hoveredIdx];
+        const cx   = candleX(hoveredIdx);
+        const tx   = tooltipX(hoveredIdx);
+        const isUp = c.close >= c.open;
+
+        return (
+          <g>
+            {/* Vertical crosshair */}
+            <line
+              x1={cx} y1={margin.top}
+              x2={cx} y2={margin.top + chartH}
+              stroke={theme.colors.textMuted}
+              strokeDasharray="4 2"
+              strokeWidth={1}
+              opacity={0.5}
+            />
+            {/* Tooltip */}
+            <foreignObject x={tx} y={margin.top + 4} width={132} height={112}>
+              <div
+                xmlns="http://www.w3.org/1999/xhtml"
+                style={{
+                  backgroundColor: theme.colors.surface,
+                  border:          `1px solid ${theme.colors.border}`,
+                  borderRadius:    '6px',
+                  padding:         '8px 10px',
+                  fontSize:        '11px',
+                  boxShadow:       theme.shadow.md,
+                  lineHeight:      1.65,
+                }}
+              >
+                <div style={{ color: theme.colors.textMuted, marginBottom: 4 }}>
+                  {c.time}
+                </div>
+                <div style={{ color: theme.colors.textSecondary }}>
+                  O: <span style={{ color: theme.colors.textPrimary, fontWeight: 600 }}>
+                    {fmt(c.open)}
+                  </span>
+                </div>
+                <div style={{ color: theme.colors.textSecondary }}>
+                  H: <span style={{ color: theme.colors.success, fontWeight: 600 }}>
+                    {fmt(c.high)}
+                  </span>
+                </div>
+                <div style={{ color: theme.colors.textSecondary }}>
+                  L: <span style={{ color: theme.colors.danger, fontWeight: 600 }}>
+                    {fmt(c.low)}
+                  </span>
+                </div>
+                <div style={{ color: theme.colors.textSecondary }}>
+                  C: <span style={{
+                    color: isUp ? theme.colors.success : theme.colors.danger,
+                    fontWeight: 600,
+                  }}>
+                    {fmt(c.close)}
+                  </span>
+                </div>
+              </div>
+            </foreignObject>
+          </g>
+        );
+      })()}
+    </svg>
+  );
 };
 
 const QuotePage = () => {
@@ -115,19 +343,15 @@ const QuotePage = () => {
   const [isInitial,  setIsInitial]  = useState(true);
 
   // priceFlash — 'up' | 'down' | null
-  // Set when a poll detects a price change. Cleared after 1.5 seconds.
-  // Controls background color on the price block.
   const [priceFlash, setPriceFlash] = useState(null);
 
-  // prevPriceRef — holds the last known price between polls.
-  // useRef so it does not cause a re-render when updated.
+  // prevPriceRef — last known price between polls, no re-render on update.
   const prevPriceRef = useRef(null);
 
   // ── Initial full load ──────────────────────────────────────────────────────
   //
-  // Fetches quote, profile, and candles in parallel.
-  // Only runs on ticker change or after a trade (refreshKey).
-  // Profile and candles are not re-fetched on polls — they are stable.
+  // Quote loaded first — resolveQuote() caches candles as a side effect.
+  // Profile and candles then fire in parallel — candles is always a cache hit.
   const loadData = useCallback(async () => {
     if (!ticker) return;
     localStorage.setItem('lastQuoteTicker', ticker.toUpperCase());
@@ -135,8 +359,6 @@ const QuotePage = () => {
     setError(null);
 
     try {
-      // Load quote first — resolveQuote() caches candles as a side effect.
-      // Profile and candles then fire in parallel — candles is always a cache hit.
       const quoteData = await getFullQuote(ticker);
       const [profileData, candleData] = await Promise.all([
         getStockProfile(ticker),
@@ -159,17 +381,11 @@ const QuotePage = () => {
     loadData();
   }, [loadData]);
 
-  // Re-fetch full data after a trade completes
   useEffect(() => {
     if (refreshKey > 0) loadData();
   }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Background quote poll ──────────────────────────────────────────────────
-  //
-  // Fetches quote only every 15 seconds.
-  // Profile and candles are excluded — they do not change on this cadence.
-  // Only updates state if price actually changed — no unnecessary re-renders.
-  // Triggers flash effect when price changes direction.
   const pollQuote = useCallback(async () => {
     if (!ticker) return;
     try {
@@ -177,27 +393,23 @@ const QuotePage = () => {
       const newPrice  = quoteData.price;
       const oldPrice  = prevPriceRef.current;
 
-      // Only update if price changed
       if (oldPrice !== null && newPrice === oldPrice) return;
 
-      // Determine direction for flash
       if (oldPrice !== null) {
         const direction = newPrice > oldPrice ? 'up' : 'down';
         setPriceFlash(direction);
-
-        // Clear flash after 1.5 seconds
         setTimeout(() => setPriceFlash(null), 1500);
       }
 
       prevPriceRef.current = newPrice;
       setQuote(quoteData);
     } catch {
-      // Silent — poll failures do not show errors to the user
+      // Silent — poll failures do not show errors
     }
   }, [ticker]);
 
   useEffect(() => {
-    if (isInitial) return; // wait for first load before polling
+    if (isInitial) return;
     const interval = setInterval(pollQuote, 15000);
     return () => clearInterval(interval);
   }, [isInitial, pollQuote]);
@@ -215,9 +427,25 @@ const QuotePage = () => {
     return candles.filter((c) => c.time >= cutoffStr);
   })();
 
+  // ── Option B — append current price to chart ───────────────────────────────
+  //
+  // Replace last candle's close with quote.price so the chart always ends
+  // at the current delayed price. No extra Stooq call — quote.price is
+  // already in state from the initial load and 15s poll.
+  // If candles is empty or quote not loaded — return as-is.
+  const chartCandles = (() => {
+    if (!quote || visibleCandles.length === 0) return visibleCandles;
+    const updated = [...visibleCandles];
+    updated[updated.length - 1] = {
+      ...updated[updated.length - 1],
+      close: quote.price,
+    };
+    return updated;
+  })();
+
   const chartPositive =
-    visibleCandles.length > 1
-      ? visibleCandles[visibleCandles.length - 1].close >= visibleCandles[0].close
+    chartCandles.length > 1
+      ? chartCandles[chartCandles.length - 1].close >= chartCandles[0].close
       : true;
 
   const chartColor = chartPositive ? theme.colors.success : theme.colors.danger;
@@ -231,9 +459,9 @@ const QuotePage = () => {
     }).format(value);
 
   const formatPercent = (value) =>
-  value === null || value === undefined
-    ? '--'
-    : `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+    value === null || value === undefined
+      ? '--'
+      : `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 
   const formatVolume = (value) => {
     if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
@@ -248,8 +476,6 @@ const QuotePage = () => {
     return theme.colors.textMuted;
   };
 
-  // Flash background color for the price block.
-  // Up = light green tint, Down = light red tint, null = transparent.
   const flashBackground = priceFlash === 'up'
     ? theme.colors.successTint
     : priceFlash === 'down'
@@ -310,16 +536,14 @@ const QuotePage = () => {
             </div>
           )}
 
-          {/* Price block — flash background transitions on price change */}
           {quote && (
             <div style={{
               ...styles.priceBlock,
               backgroundColor: flashBackground,
               borderRadius:    theme.radius.md,
-              // Smooth fade in/out of the flash background
               transition:      'background-color 0.3s ease',
               padding:         `${theme.spacing[1]} ${theme.spacing[2]}`,
-              marginLeft:      `-${theme.spacing[2]}`, // offset padding so text stays aligned
+              marginLeft:      `-${theme.spacing[2]}`,
             }}>
               <span style={styles.price}>{formatCurrency(quote.price)}</span>
               <span style={{ ...styles.change, color: pnlColor(quote.change) }}>
@@ -405,56 +629,64 @@ const QuotePage = () => {
             </div>
           </div>
 
-          <ResponsiveContainer width="100%" height={280}>
-            <AreaChart
-              data={visibleCandles}
-              margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-            >
-              <defs>
-                <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor={chartColor} stopOpacity={0.15} />
-                  <stop offset="95%" stopColor={chartColor} stopOpacity={0}    />
-                </linearGradient>
-              </defs>
+          {/* 5D — candlestick chart using full OHLC data */}
+          {range === '5D' ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <OhlcChart candles={chartCandles} />
+            </ResponsiveContainer>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <AreaChart
+                data={chartCandles}
+                margin={{ top: 8, right: 40, left: 0, bottom: 0 }}
+              >
+                <defs>
+                  <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor={chartColor} stopOpacity={0.15} />
+                    <stop offset="95%" stopColor={chartColor} stopOpacity={0}    />
+                  </linearGradient>
+                </defs>
 
-              <CartesianGrid
-                strokeDasharray="3 3"
-                stroke={theme.colors.border}
-                vertical={false}
-              />
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke={theme.colors.border}
+                  vertical={false}
+                />
 
-              <XAxis
-                dataKey="time"
-                tick={{ fontSize: 11, fill: theme.colors.textMuted }}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={axisConf.formatter}
-                interval={axisConf.interval}
-              />
+                <XAxis
+                  dataKey="time"
+                  tick={{ fontSize: 11, fill: theme.colors.textMuted }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={axisConf.formatter}
+                  interval={axisConf.interval}
+                  minTickGap={axisConf.minTickGap}
+                />
 
-              <YAxis
-                domain={['auto', 'auto']}
-                tick={{ fontSize: 11, fill: theme.colors.textMuted }}
-                tickLine={false}
-                axisLine={false}
-                width={60}
-                tickFormatter={(val) => `$${val.toFixed(0)}`}
-              />
+                <YAxis
+                  domain={['auto', 'auto']}
+                  tick={{ fontSize: 11, fill: theme.colors.textMuted }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={60}
+                  tickFormatter={(val) => `$${val.toFixed(0)}`}
+                />
 
-              <Tooltip content={<ChartTooltip />} />
+                <Tooltip content={<ChartTooltip />} />
 
-              <Area
-                type="monotone"
-                dataKey="close"
-                stroke={chartColor}
-                strokeWidth={2}
-                fill="url(#chartGradient)"
-                dot={false}
-                activeDot={{ r: 4, fill: chartColor }}
-              />
+                <Area
+                  type="monotone"
+                  dataKey="close"
+                  stroke={chartColor}
+                  strokeWidth={2}
+                  fill="url(#chartGradient)"
+                  dot={false}
+                  activeDot={{ r: 4, fill: chartColor }}
+                />
 
-            </AreaChart>
-          </ResponsiveContainer>
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
 
         </div>
       )}
