@@ -1,18 +1,11 @@
-# RookieBulls - Stock Market Simulator
-
-A simulation-only stock trading platform for North America. Users practice 
-buying and selling stocks using virtual credits in a risk-free environment. 
-No real money is involved at any stage. Designed for beginners, students, 
-and self-learners who want hands-on experience with stock trading concepts.
-
-> This project is not a financial product. It does not provide financial 
-> advice or access to real markets.
-
----
+# RookieBulls — Stock Trading Simulator & Learning Platform
 
 A full-stack stock trading simulator built for educational purposes.
 Users receive $100,000 in virtual credits and simulate buying and selling
-equities using delayed US market data. No real money. No live trading.
+equities using delayed North American market data. No real money. No live trading.
+
+> This project is not a financial product. It does not provide financial
+> advice or access to real markets.
 
 > Status: Active development — MVP complete, production deployment in progress.
 
@@ -27,25 +20,25 @@ _Coming soon — deploying to DigitalOcean VPS with Nginx + SSL._
 ## System Architecture
 ```
                         ┌─────────────────────────────────┐
-                        │           Cloudflare CDN         │
+                        │           Cloudflare CDN        │
                         └────────────┬────────────────────┘
                                      │
               ┌──────────────────────┼─────────────────────────┐
-              │                      │                          │
+              │                      │                         │
      ┌────────▼────────┐   ┌─────────▼──────────┐   ┌──────────▼────────┐
-     │  Vercel (React) │   │  DigitalOcean VPS   │   │   GitHub Actions  │
-     │  Vite Frontend  │   │  Nginx Reverse Proxy│   │   CI/CD Pipeline  │
+     │  Vercel (React) │   │  DigitalOcean VPS  │   │   GitHub Actions  │
+     │  Vite Frontend  │   │ Nginx Reverse Proxy│   │   CI/CD Pipeline  │
      └────────┬────────┘   └─────────┬──────────┘   └───────────────────┘
               │                      │
               │           ┌──────────▼──────────┐
-              └──────────►│  Express API Server  │
-                          │  Node.js + JWT Auth  │
-                          └──────┬───────┬───────┘
+              └──────────►│ Express API Server  │
+                          │ Node.js + JWT Auth  │
+                          └──────┬───────┬──────┘
                                  │       │
                     ┌────────────▼┐    ┌─▼─────────────┐
-                    │  MongoDB     │    │  Redis Cache   │
-                    │  (Docker)    │    │  (Docker)      │
-                    └─────────────┘    └────────────────┘
+                    │  MongoDB    │    │  Redis Cache  │
+                    │  (Docker)   │    │  (Docker)     │
+                    └─────────────┘    └───────────────┘
                                                │
                                     ┌──────────▼──────────┐
                                     │  Stooq Market Data  │
@@ -57,21 +50,21 @@ _Coming soon — deploying to DigitalOcean VPS with Nginx + SSL._
 
 ## Tech Stack
 
-| Layer          | Technology                          |
-|----------------|--------------------------------------|
-| Frontend       | React, Vite, Custom CSS Design System |
-| Backend        | Node.js, Express                     |
-| Database       | MongoDB (self-hosted, Docker)        |
-| Cache          | Redis (Docker)                       |
-| Auth           | JWT — access + refresh token rotation |
-| Market Data    | Stooq delayed feed                   |
-| Reverse Proxy  | Nginx                                |
-| SSL            | Let's Encrypt (Certbot)              |
-| Containerization | Docker Compose                    |
-| Hosting        | DigitalOcean VPS                     |
-| Frontend Deploy | Vercel                              |
-| DNS / CDN      | Cloudflare                           |
-| CI/CD          | GitHub Actions (in progress)         |
+| Layer            | Technology                            |
+|------------------|---------------------------------------|
+| Frontend         | React, Vite, Custom CSS Design System |
+| Backend          | Node.js, Express                      |
+| Database         | MongoDB (self-hosted, Docker)         |
+| Cache            | Redis (Docker)                        |
+| Auth             | JWT — access + refresh token rotation |
+| Market Data      | Stooq delayed feed                    |
+| Reverse Proxy    | Nginx                                 |
+| SSL              | Let's Encrypt (Certbot)               |
+| Containerization | Docker Compose                        |
+| Hosting          | DigitalOcean VPS                      |
+| Frontend Deploy  | Vercel                                |
+| DNS / CDN        | Cloudflare                            |
+| CI/CD            | GitHub Actions (in progress)          |
 
 ---
 
@@ -107,7 +100,7 @@ _Coming soon — deploying to DigitalOcean VPS with Nginx + SSL._
 
 ### Frontend
 - Custom design system — no component library dependency
-- 6 pages: Dashboard, Portfolio, Holdings, Trade History, Ticker Search, Profile
+- 7 pages: Login, Register, Dashboard, Summary, Holdings, Trade History, Quote
 - Candlestick chart — custom SVG renderer using OHLC data
 - Trade panels and confirmation modals
 - Live price polling via interval-based fetch
@@ -117,29 +110,167 @@ _Coming soon — deploying to DigitalOcean VPS with Nginx + SSL._
 ## Module Structure
 ```
 backend/
-  src/
-    modules/
-      auth/         routes → controller → service → model → validators
-      wallet/       routes → controller → service → model → validators
-      trade/        routes → controller → service → model → validators
-      portfolio/    routes → controller → service → model → validators
-      market/       routes → controller → service → model → validators
-    middleware/
-    config/
-    utils/
-
-frontend/
-  src/
-    pages/
-    components/
-    services/       (API call layer)
-    styles/         (design tokens, global CSS)
+├── config/
+│   ├── db.js               # MongoDB connection
+│   └── env.js              # Environment variable validation and export
+│
+├── middleware/
+│   └── auth.js             # JWT verification middleware
+│
+├── modules/
+│   ├── auth/               # Registration, login, token refresh, logout
+│   │   ├── controller.js
+│   │   ├── model.js
+│   │   ├── routes.js
+│   │   ├── service.js
+│   │   └── validators.js
+│   │
+│   ├── user/               # Profile reads and account management
+│   │   ├── controller.js
+│   │   ├── model.js
+│   │   ├── routes.js
+│   │   ├── service.js
+│   │   └── validators.js
+│   │
+│   ├── wallet/             # Virtual credit ledger and transaction history
+│   │   ├── controller.js
+│   │   ├── model.js
+│   │   ├── routes.js
+│   │   ├── service.js
+│   │   └── validators.js
+│   │
+│   ├── trade/              # Buy/sell execution, fee simulation, order status
+│   │   ├── controller.js
+│   │   ├── model.js
+│   │   ├── routes.js
+│   │   ├── service.js
+│   │   └── validators.js
+│   │
+│   ├── position/           # Position state and weighted average cost basis
+│   │   ├── model.js
+│   │   └── service.js      # No routes — consumed internally by trade module
+│   │
+│   ├── portfolio/          # Holdings aggregation, PnL, day change
+│   │   ├── controller.js
+│   │   ├── model.js
+│   │   ├── routes.js
+│   │   ├── service.js
+│   │   └── validators.js
+│   │
+│   ├── market/             # Price delivery, caching, ticker search
+│   │   ├── controller.js
+│   │   ├── model.js
+│   │   ├── routes.js
+│   │   ├── service.js
+│   │   ├── validators.js
+│   │   │
+│   │   ├── cache/
+│   │   │   └── redisClient.js      # Redis connection and client export
+│   │   │
+│   │   ├── providers/
+│   │   │   ├── stooqProvider.js    # Stooq delayed price fetcher
+│   │   │   └── secProvider.js      # SEC data provider
+│   │   │
+│   │   ├── data/
+│   │   │   ├── tickers.json        # North America ticker reference data
+│   │   │   └── transformTickers.js # Normalisation logic for ticker data
+│   │   │
+│   │   ├── utils/
+│   │   │   ├── marketHours.js      # Exchange hours and open/closed state
+│   │   │   └── tickerSearch.js     # Ticker lookup and filtering logic
+│   │   │
+│   │   └── workers/
+│   │       └── priceUpdater.js     # Background worker — polling and cache writes
+│   │
+│   └── education/          # Educational content framework (in progress)
+│       ├── controller.js
+│       ├── model.js
+│       ├── routes.js
+│       ├── service.js
+│       └── validators.js
+│
+├── utils/                  # Shared utilities (reserved for future helpers)
+│
+└── server.js               # App entry point — Express init, middleware, route mounting
 ```
 
-Each module follows a strict layering contract:
-- Controller handles HTTP only — no business logic
-- Service handles business logic only — no HTTP, no direct DB access
-- Model handles data access only
+### Layering Contract
+
+| Layer        | Responsibility                      | Rule                              |
+|--------------|-------------------------------------|-----------------------------------|
+| routes.js    | Path and method registration        | No logic                          |
+| controller.js| HTTP request and response handling  | No business logic                 |
+| service.js   | Business logic and orchestration    | No HTTP, no direct DB calls       |
+| model.js     | Database schema and data access     | No logic outside queries          |
+| validators.js| Input shape and constraint validation | No side effects                 |
+
+The `position` module has no routes or controller by design — it is an internal service
+consumed directly by the trade module, not exposed as a public endpoint.
+
+---
+
+## Frontend Structure
+```
+frontend/
+└── src/
+    ├── main.jsx                    # React entry point
+    ├── App.jsx                     # Route definitions and layout wrapper
+    │
+    ├── pages/
+    │   ├── LoginPage.jsx
+    │   ├── RegisterPage.jsx
+    │   ├── DashboardPage.jsx           # Portfolio summary and market overview
+    │   ├── SummaryPage.jsx             # PnL summary and account snapshot
+    │   ├── HoldingsPage.jsx            # Open positions with live PnL
+    │   ├── HistoryPage.jsx             # Completed trade log
+    │   └── QuotePage.jsx               # Ticker detail and trade entry
+    │
+    ├── components/
+    │   ├── MarketStatus.jsx            # Exchange open/closed indicator
+    │   ├── PortfolioTable.jsx          # Reusable holdings and PnL table
+    │   ├── TickerSearch.jsx            # Typeahead ticker lookup
+    │   ├── TradeForm.jsx               # Buy/sell quantity and order input
+    │   ├── ProtectedRoute.jsx          # Auth guard for private routes
+    │   │
+    │   ├── layout/
+    │   │   ├── Layout.jsx              # Page shell — nav + outlet
+    │   │   ├── TopNav.jsx              # Primary navigation bar
+    │   │   └── SecondNav.jsx           # Contextual sub-navigation
+    │   │
+    │   └── modals/
+    │       ├── TradePanel.jsx          # Slide-in trade entry panel
+    │       ├── GetQuotePopup.jsx       # Quick price lookup modal
+    │       ├── ExecutionConfirmation.jsx  # Pre-submit order review
+    │       └── OrderConfirmation.jsx   # Post-execution result display
+    │
+    ├── context/
+    │   └── AuthContext.jsx         # Global auth state — user, token, login, logout
+    │
+    ├── services/                   # All API calls — one file per domain
+    │   ├── axiosInstance.js        # Axios config — base URL, interceptors, token refresh
+    │   ├── auth.js
+    │   ├── market.js
+    │   ├── portfolio.js
+    │   ├── trade.js
+    │   ├── wallet.js
+    │   └── history.js
+    │
+    ├── styles/
+    │   ├── global.css              # Reset, CSS custom properties, base typography
+    │   ├── theme.js                # Design tokens exported as JS constants
+    │   └── tableStyles.js          # Shared table style definitions
+    │
+    └── utils/
+        └── inactivityTimer.js      # Auto-logout on user inactivity
+```
+
+### Frontend Architecture Notes
+
+- No component library — all UI built against a custom design system using CSS custom properties
+- `services/` layer is the only point of contact with the backend API — no fetch calls outside this folder
+- `axiosInstance.js` handles token refresh automatically via a response interceptor — pages and services never manage token state directly
+- `context/AuthContext.jsx` is the single source of truth for authentication state across the app
+- Modal components are fully decoupled from pages — they receive props and emit callbacks only
 
 ---
 
@@ -192,18 +323,30 @@ git clone https://github.com/yourhandle/rookiebulls.git
 
 # Backend
 cd backend
+cp .env.example .env
+npm install
 npm run dev
 
 # Frontend
 cd frontend
+npm install
 npm run dev
 
 # Docker (MongoDB + Redis)
-docker compose up -d
+docker compose up -d mongo redis
+```
 
 ---
 
 ## Target Audience
 
-North American users: beginners, students, and aspiring traders who want 
+North American users: beginners, students, and aspiring traders who want
 practical experience with equity trading concepts without financial risk.
+
+---
+
+## Disclaimer
+
+RookieBulls is an educational simulation platform only.
+No real money is involved. Market data is delayed and used for
+learning purposes only. This platform does not constitute financial advice.
