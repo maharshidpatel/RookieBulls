@@ -78,7 +78,7 @@ const MarketStatus = ({ onStatusChange }) => {
   }, [])
   // Why empty dependency array:
   //   fetchStatus only needs to run on mount and on the interval timer.
-  //   onStatusChange is a stable useCallback reference in DashboardPage
+  //   onStatusChange is a stable useCallback reference in the parent page
   //   so it will not change between renders — safe to exclude.
   //   The eslint disable comment suppresses the linter warning for this
   //   intentional decision.

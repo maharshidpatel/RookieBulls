@@ -13,11 +13,10 @@
  *
  *  quote:TICKER         object    90s / nextOpen TTL
  *                                 shape: { price, change, changePercent,
- *                                          high, low, open, closingPrice,
+ *                                          high, low, open, prevClose,
  *                                          timestamp }
- *                                 NOTE: no prevClose field in quote object
  *                                 change/changePercent = price vs prevClose:TICKER
- *                                 closingPrice = yesterday's close (display only)
+ *                                 prevClose = yesterday's close (QuotePage "Prev Close")
  *
  *  prevClose:TICKER     number    nextOpen TTL
  *                                 written by opening job at 9:45 AM

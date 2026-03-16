@@ -53,8 +53,8 @@ export const getMarketStatus = async () => {
 //   { ticker, price, change, changePercent, high, low, open, prevClose, timestamp }
 //
 // Used by:
-//   BuyPanel / SellPanel — fetch current price when panel opens
-//   GetQuotePopup        — display quote data after ticker search (Step 6.10)
+//   GetQuotePopup — display quote data after ticker search
+//   QuotePage     — initial load and 15s poll
 //
 // Uses plain axios — market endpoints are public, no auth header needed.
 export const getFullQuote = async (ticker) => {

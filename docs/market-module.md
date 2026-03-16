@@ -1,127 +1,114 @@
-# Market Module (Real Delayed Data)
+# Market Module
+
+Documents the architecture decisions made during Step 5 (real market data integration).
+
+---
 
 ## Provider Decision
-Provider:   Finnhub
-Free tier:  60 requests/minute
-Delay:      15 minutes
-Coverage:   NYSE, Nasdaq
+
+| | |
+|---|---|
+| Provider | Stooq |
+| Cost | Free — no API key required |
+| Delay | 15 minutes |
+| Coverage | NYSE, Nasdaq (and others — filtered to US common stocks via tickers.json) |
+| Rate limit | None published — 391 calls/day well within observed free-tier behavior |
+
+Stooq was chosen over Finnhub to avoid API key management and the 60 req/min free-tier ceiling. Stooq is accessed via CSV endpoint — no SDK, no auth header.
+
+---
 
 ## The Middleman Pattern
 
-The website never calls Finnhub directly.
-All price and market data flows through market/service.js.
+The app never calls Stooq directly from trade or portfolio code. All price and market data flows through `market/service.js`.
+
 ```
 Frontend / Trade Service / Portfolio Service
               │
               ▼
-    market/service.js        ← the middleman
+    market/service.js        ← the only Stooq-aware file
               │
-              ▼
-           Finnhub API
+              ├── stooqProvider.js   (HTTP + CSV parsing)
+              └── secProvider.js     (SEC EDGAR HTTP)
 ```
 
-When Finnhub is replaced with another provider:
-  - Change market/service.js internals only
-  - No changes to trade/service.js
-  - No changes to portfolio/service.js
-  - No changes to any frontend service
-  - No changes to any component
+When the provider changes:
+- Change `stooqProvider.js` internals only
+- `trade/service.js` — no changes
+- `portfolio/service.js` — no changes
+- Any frontend service — no changes
+- Any component — no changes
 
-This is the same pluggable boundary established in Step 4
-with hardcoded prices — now formalised as an explicit pattern.
+---
 
-## What Does Not Change
+## Two-Key Redis Strategy
 
-  Position model          — unchanged
-  Trade model             — unchanged
-  Wallet service          — unchanged
-  Auth module             — unchanged
-  Portfolio service       — getPrice() becomes async (one line change per call)
+Price data for each ticker is stored across two separate Redis keys:
 
-## Ticker Search — Architectural Impact
-  User types into a search box (e.g. 'APP')
-  → debounced request fires after 300ms of no typing
-  → GET /api/market/search?q=APP
-  → market/service.js calls Finnhub symbol search endpoint
-  → returns [{ ticker, companyName, exchange }]
-  → user selects AAPL from results
-  → trade form populated with selected ticker
-  → trade executes against live delayed price
+| Key | Value | Purpose |
+|---|---|---|
+| `prevClose:TICKER` | yesterday's closing price | day change baseline (written once at 9:45 AM) |
+| `closingPrice:TICKER` | today's closing price | "Prev Close" display on QuotePage (written once at 4:16 PM) |
+
+These are separate from `price:TICKER` (the live delayed price, 90s TTL) and `quote:TICKER` (the full quote object, 90s TTL).
+
+The `quote:TICKER` object does **not** include `prevClose` as a field. `prevClose:TICKER` lives in its own Redis key and is read directly by `portfolio/service.js`.
+
+---
+
+## Ticker Search
+
+```
+User types "APP"
+→ debounced 300ms
+→ GET /api/market/search?q=APP
+→ market/service.js → tickerSearch.js
+→ in-memory filter of tickers.json (loaded at module load time)
+→ returns [{ ticker, companyName, exchange }] — max 10 results
+→ zero external API calls — sub-millisecond response
+```
+
+`tickers.json` is a filtered list of US-listed common stocks built from SEC EDGAR data via `data/transformTickers.js`. No live API is involved in search.
+
+---
 
 ## Market Hours Enforcement
 
-Trading allowed:   Monday–Friday, 9:30am–4:00pm EST
-Trading blocked:   weekends, before 9:30am, after 4:00pm EST
-Holidays:          Finnhub market status endpoint handles this
-                   More accurate than local calculation
-                   Accounts for early closes and public holidays
+```
+Trading allowed:   Monday–Friday, 9:45 AM – 4:15 PM ET
+Trading blocked:   weekends, federal holidays, before 9:45 AM, after 4:15 PM ET
+Early closes:      Black Friday and Christmas Eve (if weekday) — 1:15 PM ET
+```
 
-Where the check lives: trade/service.js
-  executeBuy and executeSell call isMarketOpen() as first step.
-  Throws 403 if market is closed.
-  isMarketOpen() lives in market/service.js.
+**Where the check lives:** `trade/service.js`
+`executeBuy` and `executeSell` call `isMarketOpen()` as their first step. Throws 403 if closed. No price lookup, no wallet debit, nothing else happens.
 
-Testing bypass:
-  .env:  BYPASS_MARKET_HOURS=true
-  market/service.js reads this flag and skips the check.
-  Never set to true in production.
-  Allows testing trades at any time during development.
+**Holiday source:** `date.nager.at` — fetched once per year, cached 24h in Redis under `market:holidays:YEAR`. On fetch failure, `isTradingDay()` fails open (returns true) rather than blocking legitimate trades.
 
-## Environment Variables (to add)
+**Development bypass:** `isMarketOpen()` returns `true` when `NODE_ENV !== 'production'`. No separate env flag needed.
 
-  FINNHUB_API_KEY=<your key>
-  BYPASS_MARKET_HOURS=false
+---
 
-## Substeps
+## Background Price Updater
 
-  1  Confirm Finnhub free tier terms
-         Verify public educational platform is permitted.
-         Get API key. Add to .env and .env.example.
+Three distinct jobs run via a single 60s `setInterval`. See `DATA_FLOW.md` for the full job breakdown.
 
-  2  market/service.js — getPrice(ticker)
-         Finnhub quote endpoint.
-         Returns delayed price as a number.
-         Handles unknown ticker (404) and provider failure (503).
-         Function becomes async — all callers add await.
+```
+Opening job   — 9:45 AM  — copies closingPrice → prevClose for all tickers (0 Stooq calls)
+Regular tick  — every 60s — fetches live prices for all held + watched tickers (1 Stooq batch)
+Closing job   — 4:16 PM  — captures final prices, writes overnight cache (1 Stooq batch)
+```
 
-  3  market/service.js — searchTickers(query)
-         Calls Finnhub symbol search endpoint.
-         Filters results to NYSE and Nasdaq only.
-         Returns [{ ticker, companyName, exchange }].
+**Daily Stooq call budget: 391 calls/day** — fixed regardless of ticker count.
 
-  4  market/service.js — isMarketOpen()
-         Calls Finnhub market status endpoint.
-         Returns true if NYSE is currently open, false otherwise.
-         Reads BYPASS_MARKET_HOURS env flag — returns true if set.
+---
 
-  5  Market routes and controller
-         GET /api/market/price/:ticker   — single price lookup
-         GET /api/market/search?q=query  — ticker search
-         GET /api/market/status          — market open or closed
-         No auth required — prices are public information.
+## What Did Not Change from MVP
 
-  6  Trade service — enforce market hours
-         Add isMarketOpen() call as first step in executeBuy and executeSell.
-         Throws 403 with message: 'Market is currently closed'
-
-  7  Frontend — ticker search component
-         New component: TickerSearch.jsx
-         Debounced input — 300ms wait before API call fires.
-         Displays results with company name and exchange label.
-         On selection: populates TradeForm with chosen ticker.
-         Replaces the TICKERS dropdown entirely.
-
-  8  Frontend — market status indicator
-         Small indicator on dashboard: MARKET OPEN / MARKET CLOSED
-         Shows next open time when closed.
-         Disables buy and sell buttons when market is closed.
-
-## Decisions Confirmed
-
-  Provider:               Finnhub
-  Exchanges:              NYSE and Nasdaq only
-  Holiday handling:       Finnhub market status endpoint
-  Testing bypass:         BYPASS_MARKET_HOURS env flag
-  Middleman pattern:      market/service.js is the only Finnhub-aware file
-  Ads/monetization:       Post-deployment, after traffic confirmed
-  API upgrade path:       Change market/service.js only — nothing else
+| Component | Status |
+|---|---|
+| Position model | Unchanged |
+| Trade model | Unchanged |
+| Wallet service | Unchanged |
+| Auth module | Unchanged |
+| Portfolio service | `getPrice()` became async — one-line change per call site |

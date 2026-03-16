@@ -13,9 +13,9 @@
  *
  *  JOB 2 — Regular tick (every 60s during market hours):
  *    Single Stooq batch request for ALL held + watched tickers.
- *    Reads prevClose:TICKER and closingPrice:TICKER from Redis.
+ *    Reads prevClose:TICKER from Redis.
  *    Writes price:TICKER (90s TTL) and quote:TICKER (90s TTL).
- *    quote object includes closingPrice field for QuotePage "Prev Close" display.
+ *    quote object includes prevClose field for QuotePage "Prev Close" display.
  *    Zero Stooq calls from portfolio or QuotePage for held/watched tickers.
  *
  *  JOB 3 — Closing job (first tick after 4:16 PM on a trading day):
@@ -46,8 +46,9 @@
  *  quote:TICKER        written by: regular tick (90s TTL during hours)
  *                                  closing job (nextOpen TTL after close)
  *                      shape:      { price, change, changePercent, high,
- *                                    low, open, closingPrice, timestamp }
- *                      NOTE:       no prevClose field — lives in its own key
+ *                                    low, open, prevClose, timestamp }
+ *                      NOTE:       prevClose = yesterday's closing price
+ *                                  displayed as "Prev Close" on QuotePage
  *
  * ─────────────────────────────────────────────────────────────────────────
  * DAILY STOOQ CALL ESTIMATE:
@@ -247,14 +248,8 @@ const runUpdate = async () => {
 
         // prevClose:TICKER — set by opening job at 9:45 AM
         // Cold if new ticker or first ever day
-        const prevCloseRaw    = await get(`prevClose:${ticker}`)
-        const prevClose       = prevCloseRaw ? parseFloat(prevCloseRaw) : null
-
-        // closingPrice:TICKER — set by closing job at 4:16 PM
-        // Displayed as "Prev Close" on QuotePage
-        // Cold on first day or new ticker — resolveQuote() bootstraps it on QuotePage visit
-        const closingPriceRaw = await get(`closingPrice:${ticker}`)
-        const closingPrice    = closingPriceRaw ? parseFloat(closingPriceRaw) : null
+        const prevCloseRaw = await get(`prevClose:${ticker}`)
+        const prevClose    = prevCloseRaw ? parseFloat(prevCloseRaw) : null
 
         const change = prevClose !== null
           ? parseFloat((data.price - prevClose).toFixed(2))

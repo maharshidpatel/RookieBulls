@@ -14,9 +14,9 @@
  *   Used in App.jsx to wrap any route that requires login.
  *
  * USAGE:
- *   <Route path="/dashboard" element={
+ *   <Route path="/summary" element={
  *     <ProtectedRoute>
- *       <DashboardPage />
+ *       <SummaryPage />
  *     </ProtectedRoute>
  *   } />
  */

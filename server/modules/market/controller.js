@@ -39,7 +39,8 @@ const getPriceHandler = async (req, res, next) => {
 
 // getQuoteHandler
 // GET /api/market/quote/:ticker
-// Returns full quote object — price, change, changePercent, OHLC, prevClose.
+// Returns full quote object — price, change, changePercent, OHLC, closingPrice.
+// Note: prevClose is stored as a separate Redis key (prevClose:TICKER), not in this object.
 // Used by QuotePage, TradePanel, GetQuotePopup.
 //
 // Calls resolveQuote(ticker, trackWatched=true):

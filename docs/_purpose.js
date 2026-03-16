@@ -4,15 +4,18 @@
  * Project-level documentation that does not belong inside code files.
  *
  * Files:
- *  - architecture.md   → high level system design decisions
- *                        why the stack was chosen, how the pieces connect,
- *                        what the deployment looks like
+ *  - architecture.md   → stack overview, module structure, Redis key reference,
+ *                        Stooq call budget, startup sequence, market hours
  *
- *  - api-contracts.md  → every API endpoint documented
- *                        URL, method, request body shape,
+ *  - api-contracts.md  → every API endpoint: URL, method, request body,
  *                        response shape, error responses
  *                        this is the agreement between frontend and backend
- *                        both sides build to this contract
+ *
+ *  - DATA_FLOW.md      → priceUpdater three-job breakdown, resolveQuote() paths,
+ *                        portfolio read path and Redis fallback chain
+ *
+ *  - market-module.md  → Step 5 architecture decisions: provider choice (Stooq),
+ *                        two-key Redis strategy, ticker search, market hours
  *
  * Why documentation lives in the repo:
  *  Documentation that lives outside the codebase gets out of date

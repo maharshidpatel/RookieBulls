@@ -66,12 +66,12 @@ trade/service.js → executeBuy(userId, 'AAPL', 5)
   executeBuy(userId, ticker, quantity)
    │
    ├── 0. isMarketOpen()
-   │       market/service.js checks Finnhub market status
+   │       market/service.js checks NYSE market hours (Stooq 15-min delay applied)
    │       If false → 403 thrown, buy stops immediately
    │       No price lookup, no wallet debit, nothing happens
    │
    ├── 1. getPrice(ticker)
-   │       market/service.js returns delayed Finnhub price
+   │       market/service.js returns delayed Stooq price
    │       If ticker unknown → 404 thrown, buy stops
    │
    ├── 2. totalCost = quantity × price
@@ -131,11 +131,11 @@ trade/service.js → executeBuy(userId, 'AAPL', 5)
   executeSell(userId, ticker, quantity)
    │
    ├── 0. isMarketOpen()
-   │       market/service.js checks Finnhub market status
+   │       market/service.js checks NYSE market hours (Stooq 15-min delay applied)
    │       If false → 403 thrown, sell stops immediately
    │
    ├── 1. getPrice(ticker)
-   │       market/service.js returns delayed Finnhub price
+   │       market/service.js returns delayed Stooq price
    │       If ticker unknown → 404 thrown, sell stops
    │
    ├── 2. getPosition(userId, ticker)
@@ -180,7 +180,7 @@ const {
 // Throws on closed market, invalid ticker, insufficient credits, or DB failure.
 const executeBuy = async (userId, ticker, quantity) => {
   // Step 0: Check market hours before doing anything else.
-  // isMarketOpen() calls Finnhub's market status endpoint.
+  // isMarketOpen() checks NYSE market hours (Stooq 15-min delay applied).
   // If the market is closed, the trade is rejected immediately.
   // No price lookup, no wallet debit, no DB write happens.
   // This must be the first check — there is no point fetching a price
@@ -193,7 +193,7 @@ const executeBuy = async (userId, ticker, quantity) => {
     throw err
   }
 
-  // Step 1: Get the current delayed price for this ticker from Finnhub.
+  // Step 1: Get the current delayed price for this ticker from Stooq (via Redis cache).
   // getPrice() throws 404 if the ticker is not recognized.
   const price = await getPrice(ticker)
 
@@ -244,7 +244,7 @@ const executeSell = async (userId, ticker, quantity) => {
     throw err
   }
 
-  // Step 1: Get the current delayed price for this ticker from Finnhub.
+  // Step 1: Get the current delayed price for this ticker from Stooq (via Redis cache).
   const price = await getPrice(ticker)
 
   // Step 2: Validate that the user owns this stock and has enough shares.

@@ -6,7 +6,7 @@
  *   Displays the wallet summary card and a snapshot of open positions.
  *
  * Does NOT belong here:
- *   Trade execution logic (belongs in BuyPanel/SellPanel).
+ *   Trade execution logic (belongs in TradePanel/OrderConfirmation).
  *   Portfolio math (done on the server in portfolio/service.js).
  *   Auth logic.
  *

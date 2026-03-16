@@ -16,7 +16,7 @@
  *                2. weekend check
  *                3. federal holiday check (Redis cached, date.nager.at on miss)
  *                4. early close day check (Black Friday, Christmas Eve)
- *                5. EST trading hours window (9:30am–4:00pm)
+ *                5. EST trading hours window (9:45am–4:15pm)
  *    External: date.nager.at for holiday list (cached 24h in Redis)
  *    Called by: market/service.js → isMarketOpen()
  *

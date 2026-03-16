@@ -14,14 +14,14 @@
  *   - Trade buttons disabled until a ticker is selected from search
  *
  * WHAT CHANGED IN STEP 5.8:
- *   - marketOpen prop added — received from DashboardPage
+ *   - marketOpen prop added — received from parent page via MarketStatus
  *   - Buy and sell buttons disabled when marketOpen is false
  *   - Closed market message shown below buttons when market is closed
  *
  * PROPS:
  *   onTradeComplete — function called after a successful trade.
  *                     Parent uses this to refresh wallet and portfolio.
- *   marketOpen      — boolean from DashboardPage via MarketStatus.
+ *   marketOpen      — boolean from parent page via MarketStatus.
  *                     When false, buy and sell buttons are disabled.
  *
  * WHAT DOES NOT BELONG HERE:
@@ -140,7 +140,7 @@ const TradeForm = ({ onTradeComplete, marketOpen }) => {
       {/* Closed market notice — shown below selected stock when market is closed */}
       {!marketOpen && (
         <p style={styles.closedNotice}>
-          Market is currently closed. Trading resumes Monday–Friday 9:30am–4:00pm EST.
+          Market is currently closed. Trading resumes Monday–Friday 9:45am–4:15pm EST.
         </p>
       )}
 

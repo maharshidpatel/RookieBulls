@@ -48,7 +48,8 @@ router.get('/search', search)
 router.get('/status', getStatus)
 
 // GET /api/market/quote/:ticker
-// Returns full quote object — price, change, changePercent, high, low, open, prevClose.
+// Returns full quote object — price, change, changePercent, high, low, open, closingPrice.
+// Note: prevClose is stored as a separate Redis key (prevClose:TICKER), not in this object.
 router.get('/quote/:ticker', getQuoteHandler)
 
 // GET /api/market/profile/:ticker
