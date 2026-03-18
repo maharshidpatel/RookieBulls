@@ -17,10 +17,9 @@
  *   They run as middleware before the controller function is called.
  *   If validation fails, the request is rejected here and never reaches the controller.
  *
- * PATTERN:
- *   Each exported array is a list of middleware functions.
- *   Routes attach them like this:
- *     router.post('/register', validateRegister, controller.register)
+ * STEP 7 ADDITIONS:
+ *   validateRegister — now includes firstName and lastName rules
+ *   validateResendVerification — new, validates email for resend endpoint
  */
 
 const { body, validationResult } = require('express-validator');
@@ -29,51 +28,60 @@ const { body, validationResult } = require('express-validator');
  * VALIDATE REGISTER
  *
  * Rules applied to POST /auth/register requests.
+ *
+ * Step 7 additions:
+ *   firstName and lastName are now required fields.
+ *   confirmPassword is intentionally NOT validated here.
+ *   It is a client-side UX guard only — the server never receives it.
  */
 const validateRegister = [
-  /*
-   * body('email')
-   *   Targets the 'email' field inside req.body.
-   *
-   * .trim()
-   *   Removes surrounding whitespace before any check runs.
-   *
-   * .notEmpty()
-   *   Fails if the field is missing or an empty string.
-   *
-   * .isEmail()
-   *   Checks that the value matches standard email format (x@x.x).
-   *
-   * .normalizeEmail()
-   *   Lowercases the email and resolves common aliases.
-   *   Example: "User+Tag@Gmail.com" → "user@gmail.com"
-   */
+  body('firstName')
+    .trim()
+    .notEmpty().withMessage('First name is required')
+    /*
+     * .isLength({ max: 50 }) — reasonable upper bound.
+     * Prevents absurdly long strings from reaching the DB.
+     */
+    .isLength({ max: 50 }).withMessage('First name must be 50 characters or fewer')
+    /*
+     * .matches(regex) — tests the value against a regular expression.
+     *
+     * ^[a-zA-Z\s'-]+$  breaks down as:
+     *   ^         — start of string
+     *   [a-zA-Z]  — any uppercase or lowercase letter
+     *   \s        — spaces (for names like "Mary Jo")
+     *   '         — apostrophe (for names like "O'Brien")
+     *   -         — hyphen (for names like "Anne-Marie")
+     *   +         — one or more of the above characters
+     *   $         — end of string
+     *
+     * This rejects digits and all special characters except
+     * apostrophe and hyphen, which are legitimate in real names.
+     */
+    .matches(/^[a-zA-Z\s'-]+$/).withMessage('First name must not contain numbers or special characters'),
+
+  body('lastName')
+    .trim()
+    .notEmpty().withMessage('Last name is required')
+    .isLength({ max: 50 }).withMessage('Last name must be 50 characters or fewer')
+    .matches(/^[a-zA-Z\s'-]+$/).withMessage('Last name must not contain numbers or special characters'),
+
   body('email')
     .trim()
     .notEmpty().withMessage('Email is required')
     .isEmail().withMessage('Must be a valid email address')
-    .normalizeEmail(),
+    .toLowerCase(),
 
-  /*
-   * body('password')
-   *   Targets the 'password' field inside req.body.
-   *
-   * .isLength({ min: 8, max: 72 })
-   *   Minimum 8: too short to be considered secure.
-   *   Maximum 72: bcrypt silently truncates input beyond 72 bytes.
-   *              Enforcing this here ensures the password stored in the DB
-   *              is exactly the password the user believes they set.
-   */
   body('password')
     .notEmpty().withMessage('Password is required')
+    /*
+     * min 8: minimum acceptable length for security.
+     * max 72: bcrypt silently truncates input beyond 72 bytes.
+     *         Enforcing this here means the stored hash always matches
+     *         exactly what the user believes their password to be.
+     */
     .isLength({ min: 8, max: 72 }).withMessage('Password must be between 8 and 72 characters'),
 
-  /*
-   * handleValidationErrors
-   *   This middleware runs after all the rules above.
-   *   It reads any errors they collected and sends a 400 response if any exist.
-   *   If no errors exist, it calls next() to pass control to the controller.
-   */
   handleValidationErrors,
 ];
 
@@ -81,15 +89,15 @@ const validateRegister = [
  * VALIDATE LOGIN
  *
  * Rules applied to POST /auth/login requests.
- * Simpler than register — we just need both fields present.
- * The service layer handles checking whether they are correct.
+ * Only checks that both fields are present and formatted correctly.
+ * Credential correctness is handled in service.js.
  */
 const validateLogin = [
   body('email')
     .trim()
     .notEmpty().withMessage('Email is required')
     .isEmail().withMessage('Must be a valid email address')
-    .normalizeEmail(),
+    .toLowerCase(),
 
   body('password')
     .notEmpty().withMessage('Password is required'),
@@ -98,20 +106,31 @@ const validateLogin = [
 ];
 
 /*
+ * VALIDATE RESEND VERIFICATION
+ *
+ * Rules applied to POST /auth/resend-verification requests.
+ * Only needs an email address — that is all the endpoint accepts.
+ */
+const validateResendVerification = [
+  body('email')
+    .trim()
+    .notEmpty().withMessage('Email is required')
+    .isEmail().withMessage('Must be a valid email address')
+    .toLowerCase(),
+
+  handleValidationErrors,
+];
+
+/*
  * HANDLE VALIDATION ERRORS
  *
- * A shared middleware function used at the end of every validator array.
+ * Shared middleware placed at the end of every validator array.
+ * Collects all errors from the rules above and returns a 422 if any exist.
+ * If no errors, calls next() to hand control to the controller.
  *
- * validationResult(req)
- *   Collects all errors produced by the rules above it in the chain.
- *
- * If errors exist:
- *   - Responds with HTTP 422 (Unprocessable Entity)
- *   - 422 means "we understood the request, but the data inside it is invalid"
- *   - Returns an array of error objects so the frontend knows exactly what failed
- *
- * If no errors:
- *   - Calls next() — passes control to the next middleware (the controller)
+ * 422 Unprocessable Entity:
+ *   The server understood the request structure but the data inside is invalid.
+ *   More precise than 400 Bad Request for input validation failures.
  */
 function handleValidationErrors(req, res, next) {
   const errors = validationResult(req);
@@ -129,4 +148,4 @@ function handleValidationErrors(req, res, next) {
   next();
 }
 
-module.exports = { validateRegister, validateLogin };
+module.exports = { validateRegister, validateLogin, validateResendVerification };

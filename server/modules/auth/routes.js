@@ -12,51 +12,53 @@
  *
  * HOW IT FITS:
  *   This router is mounted in server.js under /api/auth.
- *   So a route defined here as /register is reachable at /api/auth/register.
+ *   A route defined here as /register is reachable at /api/auth/register.
  *
- * REQUEST FLOW:
- *   POST /api/auth/register
- *     → validateRegister middleware runs
- *     → if validation passes, controller.register runs
- *
- *   POST /api/auth/login
- *     → validateLogin middleware runs
- *     → if validation passes, controller.login runs
+ * STEP 7 ADDITIONS:
+ *   GET  /verify/:token          — verifies email from link click
+ *   POST /resend-verification    — sends a fresh verification email
  */
 
-const express = require('express');
-const router = express.Router();
-const { validateRegister, validateLogin } = require('./validators');
+const express    = require('express');
+const router     = express.Router();
 const controller = require('./controller');
 
-/*
- * POST /api/auth/register
- *
- * ...validateRegister is spread here because validateRegister is an array
- * of middleware functions, not a single function.
- * Spreading it passes each function individually to the route,
- * which is what Express expects.
- *
- * Execution order:
- *   1. body('email') validation
- *   2. body('password') validation
- *   3. handleValidationErrors — rejects if any rule failed
- *   4. controller.register — runs only if all validation passed
- */
-router.post('/register', ...validateRegister, controller.register);
+const {
+  validateRegister,
+  validateLogin,
+  validateResendVerification,
+} = require('./validators');
 
-/*
- * POST /api/auth/login
- *
- * Same pattern as register.
- * Validators confirm fields are present before the controller runs.
- */
-router.post('/login', ...validateLogin, controller.login);
+const {
+  resendVerificationLimiter,
+  loginLimiter,
+  registerLimiter,
+} = require('../../middleware/rateLimiter');
+
+// POST /api/auth/register
+// Validators confirm firstName, lastName, email, password are present.
+// On success: 201 with a message — no tokens returned until email is verified.
+router.post('/register', registerLimiter, ...validateRegister, controller.register);
+
+// POST /api/auth/login
+// Validators confirm email and password are present.
+// Returns 403 if account exists but email is not yet verified.
+router.post('/login', loginLimiter, ...validateLogin, controller.login);
 
 // POST /api/auth/refresh
-// Issues a new access token using a valid refresh token.
-// No authentication middleware — the refresh token itself is the credential.
-// Full path: POST /api/auth/refresh
+// No validator — refresh token is validated inside the service.
 router.post('/refresh', controller.refresh);
+
+// GET /api/auth/verify/:token
+// Public endpoint — no auth middleware.
+// Token comes from the email link: /verify/<hex string>
+// No request body — token is in the URL path.
+router.get('/verify/:token', controller.verifyEmail);
+
+// POST /api/auth/resend-verification
+// Validator confirms a valid email was submitted.
+// Rate limited to 3 requests per hour per IP.
+//
+router.post('/resend-verification', resendVerificationLimiter, ...validateResendVerification, controller.resendVerification);
 
 module.exports = router;
