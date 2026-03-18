@@ -21,6 +21,22 @@ const User   = require('./model');
 
 const SALT_ROUNDS = 12;
 
+/*
+ * Capitalizes the first letter of each word in a name.
+ * "john"      → "John"
+ * "mary jo"   → "Mary Jo"
+ * "O'brien"   → "O'brien" (only first letter of each space-separated word)
+ * Called before storing firstName and lastName to ensure consistent casing.
+ */
+function capitalizeName(str) {
+  if (!str) return str;
+  return str
+    .trim()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 // ─── getProfile ───────────────────────────────────────────────────────────
 //
 // Returns the authenticated user's profile data.
@@ -75,6 +91,10 @@ async function getProfile(userId) {
 // updated fields. Without it, updates bypass schema rules entirely.
 
 async function updateProfile(userId, fields) {
+
+  if (fields.firstName) fields.firstName = capitalizeName(fields.firstName);
+  if (fields.lastName)  fields.lastName  = capitalizeName(fields.lastName);
+
   const user = await User.findByIdAndUpdate(
     userId,
     { $set: fields },

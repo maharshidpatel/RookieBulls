@@ -131,6 +131,35 @@ export function AuthProvider({ children }) {
   }
 
   /*
+   * UPDATE USER
+   *
+   * Called by ProfilePage after a successful PUT /api/user/profile.
+   * Merges changed fields into the existing user object in state
+   * and sessionStorage without requiring a re-login.
+   *
+   * Why this is needed:
+   *   The JWT access token carries firstName in its payload.
+   *   When the user changes their firstName on ProfilePage, the token
+   *   still has the old value until it expires (up to 15 minutes).
+   *   This function updates the in-memory user object immediately so
+   *   TopNav reflects the new name without waiting for token expiry.
+   *
+   * Example call from ProfilePage after successful save:
+   *   updateUser({ firstName: 'newName' })
+   *
+   * Only the fields passed in are changed.
+   * All other user fields (email, role, etc.) are preserved.
+   */
+  function updateUser(fields) {
+    const next = {
+      ...auth,
+      user: { ...auth.user, ...fields },
+    };
+    setAuth(next);
+    sessionStorage.setItem('auth', JSON.stringify(next));
+  }
+
+  /*
    * INACTIVITY TIMER RESTART ON PAGE REFRESH
    *
    * If the user reloads the page while logged in, sessionStorage keeps
@@ -178,6 +207,7 @@ export function AuthProvider({ children }) {
       login,
       logout,
       updateAccessToken,
+      updateUser,
     }}>
       {children}
     </AuthContext.Provider>

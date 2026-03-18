@@ -45,6 +45,22 @@ const SALT_ROUNDS = 12;
  */
 const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
 
+/*
+ * Capitalizes the first letter of each word in a name.
+ * "john"      → "John"
+ * "mary jo"   → "Mary Jo"
+ * "O'brien"   → "O'brien" (only first letter of each space-separated word)
+ * Called before storing firstName and lastName to ensure consistent casing.
+ */
+function capitalizeName(str) {
+  if (!str) return str;
+  return str
+    .trim()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 // ─── register ──────────────────────────────────────────────────────────────
 //
 // Step 7 changes vs previous version:
@@ -90,8 +106,8 @@ async function register(firstName, lastName, email, password) {
   const verificationExpiry = new Date(Date.now() + VERIFICATION_TTL_MS);
 
   const user = await User.create({
-    firstName,
-    lastName,
+    firstName: capitalizeName(firstName),
+    lastName:  capitalizeName(lastName),
     email,
     passwordHash,
     verificationToken,

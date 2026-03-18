@@ -2,97 +2,75 @@
  * FILE: client/src/pages/RegisterPage.jsx
  *
  * RESPONSIBILITY:
- *   Registration form UI.
- *   Collects email and password, submits to the auth service,
- *   handles success and error states.
+ *   Registration form — two-column split layout.
+ *   Left panel: imported from LoginPage (single source of truth).
+ *   Right panel: firstName, lastName, email, password, confirmPassword.
  *
- * WHAT DOES NOT BELONG HERE:
- *   - Direct axios calls (use services/auth.js)
- *   - Token storage (handled in AuthContext — future step)
- *   - Business logic
+ * HOVER EFFECTS:
+ *   Submit button  — filled green → inverts white on hover
+ *   Login button   — outlined green → fills green on hover
+ *   Go to Login    — outlined green → fills green on hover (success state)
  */
 
 import { useState } from 'react';
-import { Link, useNavigate, Navigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { registerUser } from '../services/auth';
 import { useAuth } from '../context/AuthContext';
+import theme from '../styles/theme';
+import { LeftPanel, Field } from './LoginPage';
+
+function useHover() {
+  const [hovered, setHovered] = useState(false);
+  return [
+    hovered,
+    {
+      onMouseEnter: () => setHovered(true),
+      onMouseLeave: () => setHovered(false),
+    },
+  ];
+}
 
 export default function RegisterPage() {
-  /*
-   * Controlled form state.
-   * Each input is tied to a state variable — React owns the values,
-   * not the DOM. This is called a "controlled component."
-   */
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [firstName, setFirstName]             = useState('');
+  const [lastName, setLastName]               = useState('');
+  const [email, setEmail]                     = useState('');
+  const [password, setPassword]               = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading]                 = useState(false);
+  const [error, setError]                     = useState('');
+  const [fieldErrors, setFieldErrors]         = useState({});
+  const [success, setSuccess]                 = useState(false);
 
-  /*
-   * loading: true while the API request is in flight.
-   *   Disables the submit button to prevent duplicate submissions.
-   *
-   * error: string message shown when registration fails.
-   *
-   * fieldErrors: object of per-field messages from the validator.
-   *   Example: { email: 'Must be a valid email address', password: '...' }
-   */
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [fieldErrors, setFieldErrors] = useState({});
+  const [submitHovered,  submitHoverProps]  = useHover();
+  const [loginHovered,   loginHoverProps]   = useHover();
+  const [goLoginHovered, goLoginHoverProps] = useHover();
+
   const { isAuthenticated } = useAuth();
-
-  /*
-   * useNavigate returns a function that redirects the user to a new route.
-   * Called after successful registration to send the user to the login page.
-   */
   const navigate = useNavigate();
 
-  /*
-   * If the user is already authenticated, skip the register page entirely.
-   * This handles the case where a logged-in user hits the back button
-   * or navigates directly to /register.
-   */
+  if (isAuthenticated) return <Navigate to="/summary" replace />;
 
-  if (isAuthenticated) {
-    return <Navigate to="/summary" replace />;
+  function validateClient() {
+    if (password !== confirmPassword) {
+      setFieldErrors({ confirmPassword: 'Passwords do not match' });
+      return false;
+    }
+    return true;
   }
 
   async function handleSubmit(e) {
-    /*
-     * e.preventDefault() stops the browser from doing a full page reload.
-     * Without this, forms submit via the browser's native behavior
-     * which refreshes the page and loses all React state.
-     */
     e.preventDefault();
-
-    setLoading(true);
     setError('');
     setFieldErrors({});
+    if (!validateClient()) return;
+    setLoading(true);
 
     try {
-      await registerUser(email, password);
-      /*
-       * Registration succeeded.
-       * Redirect to login page so the user can sign in with their new account.
-       */
-      navigate('/login');
+      await registerUser(firstName, lastName, email, password);
+      setSuccess(true);
     } catch (err) {
-      /*
-       * axios wraps server error responses in err.response.
-       * err.response.data is the body the server sent back.
-       *
-       * Two error shapes to handle:
-       *   422 — field-level validation errors (array of { field, message })
-       *   409 — duplicate email (single message string)
-       *   anything else — generic server error
-       */
       const data = err.response?.data;
-
       if (err.response?.status === 422 && data?.errors) {
-        /*
-         * Convert the errors array into an object keyed by field name.
-         * [ { field: 'email', message: '...' } ]
-         * → { email: '...' }
-         */
         const mapped = {};
         data.errors.forEach(({ field, message }) => {
           mapped[field] = message;
@@ -102,145 +80,396 @@ export default function RegisterPage() {
         setError(data?.message || 'Something went wrong. Please try again.');
       }
     } finally {
-      /*
-       * finally runs whether the request succeeded or failed.
-       * Always re-enable the submit button after the request completes.
-       */
       setLoading(false);
     }
   }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <h1 style={styles.title}>Rookie Bulls</h1>
-        <h2 style={styles.subtitle}>Create an account</h2>
+    <div style={s.page}>
+      <LeftPanel />
 
-        {/* General error message — shown for non-field errors like 409 */}
-        {error && <p style={styles.errorBanner}>{error}</p>}
+      <div style={s.right}>
+        <div style={s.formBox}>
 
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <div style={styles.field}>
-            <label style={styles.label}>Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              style={styles.input}
-              placeholder="you@example.com"
-              disabled={loading}
-            />
-            {/* Field-level error — shown directly under the input */}
-            {fieldErrors.email && (
-              <p style={styles.fieldError}>{fieldErrors.email}</p>
-            )}
-          </div>
+          {success ? (
+            /*
+             * SUCCESS STATE
+             * Shown after registration — user must verify email before login.
+             * "Go to Login" is large and full-width — the clear next step.
+             */
+            <div style={s.successCard}>
+              <div style={s.successIconWrap}>
+                <span style={s.successCheck}>✓</span>
+              </div>
 
-          <div style={styles.field}>
-            <label style={styles.label}>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={styles.input}
-              placeholder="Minimum 8 characters"
-              disabled={loading}
-            />
-            {fieldErrors.password && (
-              <p style={styles.fieldError}>{fieldErrors.password}</p>
-            )}
-          </div>
+              <h2 style={s.successHeading}>Check your email</h2>
 
-          <button type="submit" style={styles.button} disabled={loading}>
-            {loading ? 'Creating account...' : 'Register'}
-          </button>
-        </form>
+              <p style={s.successText}>
+                We sent a verification link to{' '}
+                <strong style={{ color: theme.colors.textPrimary }}>{email}</strong>.
+                Click it to activate your account.
+              </p>
 
-        <p style={styles.loginLink}>
-          Already have an account? <Link to="/login">Log in</Link>
-        </p>
+              <p style={s.successHint}>
+                Link expires in 24 hours. Check spam if you do not see it.
+              </p>
+
+              {/*
+               * Full-width — unmissable next action.
+               * Outlined default, fills on hover.
+               */}
+              <button
+                onClick={() => navigate('/login')}
+                style={{
+                  ...s.goLoginBtn,
+                  ...(goLoginHovered ? s.goLoginBtnHover : {}),
+                }}
+                {...goLoginHoverProps}
+              >
+                Go to Login
+              </button>
+            </div>
+
+          ) : (
+            <>
+              <div style={s.formHeader}>
+                <h1 style={s.heading}>Create your account</h1>
+                <p style={s.subheading}>
+                  Start with $100,000 in virtual credits — no real money needed
+                </p>
+              </div>
+
+              {error && (
+                <div style={s.errorBanner}>
+                  <span style={s.errorIcon}>!</span>
+                  <p style={s.errorText}>{error}</p>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} style={s.form}>
+
+                <div style={s.nameRow}>
+                  <Field
+                    label="First name"
+                    type="text"
+                    value={firstName}
+                    onChange={e => setFirstName(e.target.value)}
+                    placeholder="Jane"
+                    disabled={loading}
+                    error={fieldErrors.firstName}
+                  />
+                  <Field
+                    label="Last name"
+                    type="text"
+                    value={lastName}
+                    onChange={e => setLastName(e.target.value)}
+                    placeholder="Smith"
+                    disabled={loading}
+                    error={fieldErrors.lastName}
+                  />
+                </div>
+
+                <Field
+                  label="Email address"
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  disabled={loading}
+                  error={fieldErrors.email}
+                />
+
+                <Field
+                  label="Password"
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Minimum 10 characters"
+                  disabled={loading}
+                  error={fieldErrors.password}
+                />
+
+                <Field
+                  label="Confirm password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="Repeat your password"
+                  disabled={loading}
+                  error={fieldErrors.confirmPassword}
+                />
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  style={{
+                    ...s.submitBtn,
+                    ...(submitHovered && !loading ? s.submitBtnHover : {}),
+                    opacity: loading ? 0.75 : 1,
+                    cursor:  loading ? 'not-allowed' : 'pointer',
+                  }}
+                  {...submitHoverProps}
+                >
+                  {loading ? 'Creating account...' : 'Create account'}
+                </button>
+
+              </form>
+
+              <div style={s.divider}>
+                <span style={s.dividerLine} />
+                <span style={s.dividerText}>Already have an account?</span>
+                <span style={s.dividerLine} />
+              </div>
+
+              <Link
+                to="/login"
+                style={{
+                  ...s.loginBtn,
+                  ...(loginHovered ? s.loginBtnHover : {}),
+                }}
+                {...loginHoverProps}
+              >
+                Log in
+              </Link>
+            </>
+          )}
+
+        </div>
       </div>
     </div>
   );
 }
 
-/*
- * Inline styles — minimal, functional.
- * No CSS framework needed for MVP.
- * Will be replaced with proper styling in a later phase.
- */
-const styles = {
-  container: {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    minHeight: '100vh',
-    backgroundColor: '#f5f5f5',
+const s = {
+  page: {
+    display:    'flex',
+    minHeight:  '100vh',
+    fontFamily: theme.font.family,
   },
-  card: {
-    backgroundColor: '#fff',
-    padding: '2rem',
-    borderRadius: '8px',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-    width: '100%',
-    maxWidth: '400px',
+
+  right: {
+    flex:            1,
+    display:         'flex',
+    alignItems:      'center',
+    justifyContent:  'center',
+    padding:         '2rem',
+    backgroundColor: theme.colors.background,
   },
-  title: {
-    margin: '0 0 0.25rem',
-    fontSize: '1.5rem',
+
+  formBox: {
+    width:         '100%',
+    maxWidth:      '440px',
+    display:       'flex',
+    flexDirection: 'column',
+    gap:           theme.spacing[5],
   },
-  subtitle: {
-    margin: '0 0 1.5rem',
-    fontSize: '1rem',
-    fontWeight: 'normal',
-    color: '#555',
+
+  formHeader: {
+    marginBottom: theme.spacing[1],
   },
+
+  heading: {
+    margin:        '0 0 6px 0',
+    fontSize:      theme.font.size['2xl'],
+    fontWeight:    theme.font.weight.bold,
+    color:         theme.colors.textPrimary,
+    letterSpacing: '-0.3px',
+  },
+
+  subheading: {
+    margin:   0,
+    fontSize: theme.font.size.sm,
+    color:    theme.colors.textSecondary,
+  },
+
   errorBanner: {
-    color: '#c0392b',
-    backgroundColor: '#fdecea',
-    padding: '0.75rem',
-    borderRadius: '4px',
-    marginBottom: '1rem',
-    fontSize: '0.9rem',
+    display:         'flex',
+    alignItems:      'flex-start',
+    gap:             theme.spacing[3],
+    backgroundColor: '#fef2f2',
+    border:          '1px solid #fecaca',
+    borderRadius:    theme.radius.md,
+    padding:         `${theme.spacing[3]} ${theme.spacing[4]}`,
   },
+
+  errorIcon: {
+    width:           '20px',
+    height:          '20px',
+    borderRadius:    theme.radius.full,
+    backgroundColor: theme.colors.danger,
+    color:           theme.colors.white,
+    fontSize:        '11px',
+    fontWeight:      theme.font.weight.bold,
+    display:         'flex',
+    alignItems:      'center',
+    justifyContent:  'center',
+    flexShrink:      0,
+    textAlign:       'center',
+    lineHeight:      '20px',
+  },
+
+  errorText: {
+    margin:     0,
+    fontSize:   theme.font.size.sm,
+    color:      theme.colors.danger,
+    fontWeight: theme.font.weight.medium,
+  },
+
   form: {
-    display: 'flex',
+    display:       'flex',
     flexDirection: 'column',
-    gap: '1rem',
+    gap:           theme.spacing[4],
   },
-  field: {
+
+  nameRow: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: '0.25rem',
+    gap:     theme.spacing[3],
   },
-  label: {
-    fontSize: '0.9rem',
-    fontWeight: '500',
+
+  submitBtn: {
+    height:          '44px',
+    width:           '100%',
+    fontSize:        theme.font.size.sm,
+    fontWeight:      theme.font.weight.semibold,
+    backgroundColor: theme.colors.success,
+    color:           theme.colors.white,
+    border:          `2px solid ${theme.colors.success}`,
+    borderRadius:    theme.radius.md,
+    cursor:          'pointer',
+    fontFamily:      'inherit',
+    marginTop:       theme.spacing[1],
+    letterSpacing:   '0.01em',
+    transition:      `all ${theme.transition.fast}`,
   },
-  input: {
-    padding: '0.6rem 0.75rem',
-    fontSize: '1rem',
-    border: '1px solid #ccc',
-    borderRadius: '4px',
+
+  submitBtnHover: {
+    backgroundColor: theme.colors.white,
+    color:           theme.colors.success,
+    boxShadow:       theme.shadow.sm,
   },
-  fieldError: {
-    color: '#c0392b',
-    fontSize: '0.8rem',
-    margin: '0',
+
+  divider: {
+    display:    'flex',
+    alignItems: 'center',
+    gap:        theme.spacing[3],
   },
-  button: {
-    padding: '0.75rem',
-    fontSize: '1rem',
-    backgroundColor: '#2c3e50',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    marginTop: '0.5rem',
+
+  dividerLine: {
+    flex:            1,
+    height:          '1px',
+    backgroundColor: theme.colors.border,
   },
-  loginLink: {
-    textAlign: 'center',
-    marginTop: '1rem',
-    fontSize: '0.9rem',
+
+  dividerText: {
+    fontSize:      theme.font.size.xs,
+    color:         theme.colors.textMuted,
+    whiteSpace:    'nowrap',
+    fontWeight:    theme.font.weight.medium,
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+  },
+
+  loginBtn: {
+    display:         'block',
+    height:          '44px',
+    lineHeight:      '40px',
+    textAlign:       'center',
+    fontSize:        theme.font.size.sm,
+    fontWeight:      theme.font.weight.semibold,
+    color:           theme.colors.success,
+    border:          `2px solid ${theme.colors.success}`,
+    borderRadius:    theme.radius.md,
+    textDecoration:  'none',
+    letterSpacing:   '0.01em',
+    backgroundColor: 'transparent',
+    transition:      `all ${theme.transition.fast}`,
+  },
+
+  /*
+   * Secondary button hover — light green tint, matches SecondNav buyBtnHover.
+   */
+  loginBtnHover: {
+    backgroundColor: theme.colors.successTint,
+    color:           theme.colors.successHover,
+    border:          `2px solid ${theme.colors.successHover}`,
+  },
+
+  // ── Success card ─────────────────────────────────────────────
+  successCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius:    theme.radius.lg,
+    border:          `1px solid ${theme.colors.border}`,
+    boxShadow:       theme.shadow.md,
+    padding:         theme.spacing[8],
+    textAlign:       'center',
+    display:         'flex',
+    flexDirection:   'column',
+    alignItems:      'center',
+    gap:             theme.spacing[4],
+  },
+
+  successIconWrap: {
+    width:           '60px',
+    height:          '60px',
+    borderRadius:    theme.radius.full,
+    backgroundColor: theme.colors.successTint,
+    border:          `2px solid ${theme.colors.success}`,
+    display:         'flex',
+    alignItems:      'center',
+    justifyContent:  'center',
+  },
+
+  successCheck: {
+    fontSize:   '26px',
+    color:      theme.colors.success,
+    fontWeight: theme.font.weight.bold,
+    lineHeight: 1,
+  },
+
+  successHeading: {
+    margin:     0,
+    fontSize:   theme.font.size.xl,
+    fontWeight: theme.font.weight.bold,
+    color:      theme.colors.textPrimary,
+  },
+
+  successText: {
+    margin:     0,
+    fontSize:   theme.font.size.sm,
+    color:      theme.colors.textSecondary,
+    lineHeight: theme.font.lineHeight.normal,
+  },
+
+  successHint: {
+    margin:     0,
+    fontSize:   theme.font.size.xs,
+    color:      theme.colors.textMuted,
+    lineHeight: theme.font.lineHeight.normal,
+  },
+
+  /*
+   * Go to Login — full card width, prominent height.
+   * The only action on the success card — cannot be missed.
+   * Outlined default, fills green on hover.
+   */
+  goLoginBtn: {
+    width:           '100%',
+    height:          '48px',
+    fontSize:        theme.font.size.md,
+    fontWeight:      theme.font.weight.semibold,
+    color:           theme.colors.success,
+    backgroundColor: 'transparent',
+    border:          `2px solid ${theme.colors.success}`,
+    borderRadius:    theme.radius.md,
+    cursor:          'pointer',
+    fontFamily:      'inherit',
+    letterSpacing:   '0.01em',
+    transition:      `all ${theme.transition.fast}`,
+    marginTop:       theme.spacing[2],
+  },
+
+  goLoginBtnHover: {
+    backgroundColor: theme.colors.success,
+    color:           theme.colors.white,
   },
 };

@@ -75,12 +75,12 @@ const validateRegister = [
   body('password')
     .notEmpty().withMessage('Password is required')
     /*
-     * min 8: minimum acceptable length for security.
+     * min 10: minimum acceptable length for security.
      * max 72: bcrypt silently truncates input beyond 72 bytes.
      *         Enforcing this here means the stored hash always matches
      *         exactly what the user believes their password to be.
      */
-    .isLength({ min: 8, max: 72 }).withMessage('Password must be between 8 and 72 characters'),
+    .isLength({ min: 10, max: 72 }).withMessage('Password must be between 10 and 72 characters'),
 
   handleValidationErrors,
 ];

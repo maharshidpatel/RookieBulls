@@ -147,6 +147,15 @@ ol {
   list-style: none;
 }
 
+/* ── Spinner animation ───────────────────────────────────────────────────────
+ *
+ * Used by VerifyPage loading state.
+ * @keyframes must be in a real CSS file — inline styles cannot define animations.
+ * ───────────────────────────────────────────────────────────────────────────── */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 
 /* ─── CSS custom properties — light mode (default) ───────────────────────────
  *

@@ -54,8 +54,22 @@ const validateUpdateProfile = [
 
   body('phone')
     .optional()
-    .trim()
-    .isLength({ max: 20 }).withMessage('Phone number must be 20 characters or fewer'),
+    /*
+     * Allow empty string — user can clear their phone number.
+     * .optional() alone does not cover empty string submissions.
+     */
+    .custom(value => {
+      if (value === '' || value === null || value === undefined) return true;
+      /*
+       * Digits only, exactly 10.
+       * No spaces, dashes, dots, or country codes.
+       * Simple rule for MVP — international format deferred.
+       */
+      if (!/^\d{10}$/.test(value)) {
+        throw new Error('Phone number must be exactly 10 digits');
+      }
+      return true;
+    }),
 
   body('bio')
     .optional()
@@ -86,7 +100,7 @@ const validateChangePassword = [
 
   body('newPassword')
     .notEmpty().withMessage('New password is required')
-    .isLength({ min: 8, max: 72 }).withMessage('New password must be between 8 and 72 characters'),
+    .isLength({ min: 10, max: 72 }).withMessage('New password must be between 10 and 72 characters'),
 
   body('confirmPassword')
     .notEmpty().withMessage('Please confirm your new password')
