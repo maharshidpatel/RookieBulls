@@ -118,6 +118,11 @@ app.use('/api/portfolio', portfolioRoutes);
 const marketRoutes = require('./modules/market/routes')
 app.use('/api/market', marketRoutes)
 
+// User routes — all endpoints require authentication
+// Handles profile read, profile update, and password change
+const userRoutes = require('./modules/user/routes')
+app.use('/api/user', userRoutes)
+
 // ─── Health Check ─────────────────────────────────────────────
 // A simple endpoint to verify the server is running
 // Used by monitoring tools and deployment pipelines
