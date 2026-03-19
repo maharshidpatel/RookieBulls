@@ -115,11 +115,13 @@ backend/
 │   └── env.js              # Environment variable validation and export
 │
 ├── middleware/
-│   └── auth.js             # JWT verification middleware
+│   ├── auth.js             # JWT verification middleware
+│   └── rateLimiter.js      # express-rate-limit — register, login, resend
 │
 ├── modules/
 │   ├── auth/               # Registration, login, token refresh, logout
 │   │   ├── controller.js
+│   │   ├── emailService.js # Resend API wrapper — verification emails only
 │   │   ├── model.js
 │   │   ├── routes.js
 │   │   ├── service.js
@@ -217,13 +219,18 @@ frontend/
     ├── App.jsx                     # Route definitions and layout wrapper
     │
     ├── pages/
-    │   ├── LoginPage.jsx
-    │   ├── RegisterPage.jsx
+    │   ├── LoginPage.jsx               # Two-column layout
+    │   ├── RegisterPage.jsx            # Two-column layout, firstName/lastName, email verify flow
+│   │   ├── VerifyPage.jsx              # Email verification — loading/success/expired/invalid states
+│   │   ├── ProfilePage.jsx             # Personal info, country dropdown, bio, change password
     │   ├── DashboardPage.jsx           # Portfolio summary and market overview
     │   ├── SummaryPage.jsx             # PnL summary and account snapshot
     │   ├── HoldingsPage.jsx            # Open positions with live PnL
     │   ├── HistoryPage.jsx             # Completed trade log
     │   └── QuotePage.jsx               # Ticker detail and trade entry
+    │
+    ├── data/
+    │   └── countries.js                # ISO 3166-1 alpha-2 country list — profile dropdown
     │
     ├── components/
     │   ├── MarketStatus.jsx            # Exchange open/closed indicator
@@ -244,11 +251,12 @@ frontend/
     │       └── OrderConfirmation.jsx   # Post-execution result display
     │
     ├── context/
-    │   └── AuthContext.jsx         # Global auth state — user, token, login, logout
+    │   └── AuthContext.jsx         # Global auth state — user, token, login, logout, updateUser
     │
     ├── services/                   # All API calls — one file per domain
     │   ├── axiosInstance.js        # Axios config — base URL, interceptors, token refresh
-    │   ├── auth.js
+    │   ├── auth.js                 # register, login, resendVerification, verifyEmail
+    │   ├── user.js                 # getProfile, updateProfile, changePassword
     │   ├── market.js
     │   ├── portfolio.js
     │   ├── trade.js
@@ -276,7 +284,9 @@ frontend/
 
 ## Data Models
 ```js
-User:     { _id, email, passwordHash, role, createdAt }
+User:     { _id, email, passwordHash, role, firstName, lastName,
+          isVerified, verificationToken, verificationExpiry,
+          displayName, country, phone, bio, createdAt }
 Wallet:   { _id, userId, balance, transactions[] }
 Position: { _id, userId, ticker, quantity, avgBuyPrice, openedAt }
 Trade:    { _id, userId, ticker, action, quantity, priceAtExecution,
@@ -307,7 +317,7 @@ services:
 - [x] Market data pipeline with Redis caching
 - [x] Portfolio PnL service
 - [x] Frontend redesign and candlestick chart
-- [ ] Account and profile management
+- [x] Account and profile management
 - [ ] VPS deployment (Docker, Nginx, SSL)
 - [ ] CI/CD pipeline (GitHub Actions)
 - [ ] Educational content framework
@@ -322,13 +332,13 @@ services:
 git clone https://github.com/yourhandle/rookiebulls.git
 
 # Backend
-cd backend
+cd server
 cp .env.example .env
 npm install
 npm run dev
 
 # Frontend
-cd frontend
+cd client
 npm install
 npm run dev
 
