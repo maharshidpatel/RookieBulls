@@ -150,13 +150,31 @@ app.use((req, res) => {
 // Must be registered last and must have four parameters
 // Express identifies error handlers by the four parameter signature
 app.use((err, req, res, next) => {
-  console.error(err.stack)
-  res.status(err.statusCode || 500).json({
-    status: 'error',
-    message: env.NODE_ENV === 'production'
+  const statusCode = err.statusCode || 500;
+
+  // Log all errors for debugging on the server.
+  // In production, this is the only place internal error details appear.
+  console.error(err);
+
+  // 4xx = intentional client error → show the real message.
+  //       These are thrown deliberately by services (via AppError)
+  //       and are meant for the user: "Invalid credentials",
+  //       "Email not verified", "Insufficient balance", etc.
+  //
+  // 5xx = unexpected server error → hide the real message.
+  //       These are bugs or infrastructure failures. The real message
+  //       might contain stack traces, DB connection strings, or other
+  //       details that should never reach the browser.
+  const message = statusCode < 500
+    ? err.message
+    : env.NODE_ENV === 'production'
       ? 'Something went wrong'
-      : err.message
-  })
+      : err.message;
+
+  res.status(statusCode).json({
+    status: 'error',
+    message,
+  });
 })
 
 // ─── Start Server ─────────────────────────────────────────────
