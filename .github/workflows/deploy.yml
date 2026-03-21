@@ -1,0 +1,76 @@
+# ============================================================================
+# DEPLOYMENT WORKFLOW — RookieBulls
+# ============================================================================
+#
+# What this does:
+#   On every push to main, SSH into the production VPS and:
+#   1. Pull the latest code
+#   2. Rebuild the backend Docker container
+#   3. Rebuild the frontend static files
+#   4. Reload Nginx to serve the new frontend
+#
+# What this does NOT do:
+#   - Run tests (no test suite yet — future addition)
+#   - Build Docker images in GitHub (images are built on the VPS itself)
+#   - Deploy the frontend to a separate service (Nginx serves dist/ from VPS)
+#
+# Secrets required (configured in GitHub → Settings → Secrets → Actions):
+#   VPS_HOST    — Droplet IP address
+#   VPS_USER    — SSH username (deploy)
+#   VPS_SSH_KEY — Private key for SSH authentication
+#
+# ============================================================================
+
+name: Deploy to VPS
+
+# ── Trigger ──────────────────────────────────────────────────────────────────
+# Run this workflow only when code is pushed to the main branch.
+# Pushes to other branches (feature branches, dev) are ignored.
+on:
+  push:
+    branches: [main]
+
+# ── Jobs ─────────────────────────────────────────────────────────────────────
+# A workflow can have multiple jobs. We have one: deploy.
+# Jobs run on GitHub-hosted runners (temporary VMs).
+jobs:
+  deploy:
+    name: Deploy backend and frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── Step 1: Deploy via SSH ───────────────────────────────────────────
+      # Uses appleboy/ssh-action to open an SSH connection to the VPS
+      # and run a sequence of shell commands remotely.
+      #
+      # appleboy/ssh-action is a community-maintained GitHub Action that:
+      #   - Sets up the SSH private key from your secret
+      #   - Connects to the host as the specified user
+      #   - Runs the script block on the remote server
+      #   - Returns exit code 0 (success) or non-zero (failure)
+      #
+      # If any command in the script fails, the entire step fails,
+      # and the workflow stops.
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            echo "── Pulling latest code ──"
+            cd ~/RookieBulls
+            git pull origin main
+
+            echo "── Rebuilding backend ──"
+            docker compose -f docker-compose.prod.yml up -d --build server
+
+            echo "── Rebuilding frontend ──"
+            cd ~/RookieBulls/client
+            npm ci
+            npm run build
+
+            echo "── Reloading Nginx ──"
+            sudo systemctl reload nginx
+
+            echo "── Deploy complete ──"
