@@ -73,4 +73,10 @@ jobs:
             echo "── Reloading Nginx ──"
             sudo systemctl reload nginx
 
+            echo "── Waiting for server to boot ──"
+            sleep 10
+
+            echo "── Health check ──"
+            curl --fail --silent --max-time 10 http://localhost:5000/api/market/status
+
             echo "── Deploy complete ──"
