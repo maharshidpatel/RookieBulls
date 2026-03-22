@@ -34,14 +34,12 @@ const resend = new Resend(env.RESEND_API_KEY);
 /*
  * FROM ADDRESS
  *
- * onboarding@resend.dev is Resend's shared dev address.
- * It works immediately without any domain verification.
- * Emails sent from it land in inbox (not spam) during development.
- *
- * In production this becomes noreply@rookiebulls.com after
- * the domain is verified with Resend in Step 11.
+ * noreply@rookiebulls.com — verified custom domain (Step 10).
+ * SPF, DKIM, and DMARC DNS records authorize Resend to send
+ * on behalf of rookiebulls.com. The "RookieBulls" prefix sets
+ * the display name shown in the recipient's inbox.
  */
-const FROM_ADDRESS = 'onboarding@resend.dev';
+const FROM_ADDRESS = 'RookieBulls <noreply@rookiebulls.com>';
 
 // ─── sendVerificationEmail ────────────────────────────────────────────────
 //
