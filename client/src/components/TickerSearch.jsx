@@ -28,9 +28,10 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { searchTickers } from '../services/market';
-import theme from '../styles/theme';
+import { useTheme } from '../context/ThemeContext';
 
 const TickerSearch = ({ onSelect, onClear, disabled, autoFocus = false, width = '100%' }) => {
+  const theme = useTheme();
   const [query,    setQuery]    = useState('');
   const [results,  setResults]  = useState([]);
   const [isOpen,   setIsOpen]   = useState(false);
@@ -93,6 +94,142 @@ const TickerSearch = ({ onSelect, onClear, disabled, autoFocus = false, width = 
     if (!e.target.value.trim() && onClear) {
       onClear();
     }
+  };
+
+  const styles = {
+    wrapper: {
+      position:      'relative',
+      display:       'flex',
+      flexDirection: 'column',
+      gap:           theme.spacing[1],
+    },
+
+    inputWrapper: {
+      position:   'relative',
+      display:    'flex',
+      alignItems: 'center',
+    },
+
+    input: {
+      width:           '100%',
+      height:          theme.ui.inputHeight,
+      padding:         `0 ${theme.spacing[3]}`,
+      fontSize:        theme.font.size.sm,
+      fontFamily:      theme.font.family,
+      color:           theme.colors.textPrimary,
+      backgroundColor: theme.colors.surface,
+      borderWidth:     '1px',
+      borderStyle:     'solid',
+      borderColor:     theme.colors.border,
+      borderRadius:    theme.radius.md,
+      outline:         'none',
+    },
+
+    spinner: {
+      position: 'absolute',
+      right:    theme.spacing[3],
+      fontSize: theme.font.size.xs,
+      color:    theme.colors.textMuted,
+    },
+
+    dropdown: {
+      position:        'absolute',
+      top:             '100%',
+      left:            0,
+      right:           0,
+      minWidth:        '280px',
+      backgroundColor: theme.colors.surface,
+      borderWidth:     '1px',
+      borderStyle:     'solid',
+      borderColor:     theme.colors.border,
+      borderRadius:    theme.radius.md,
+      boxShadow:       theme.shadow.md,
+      listStyle:       'none',
+      margin:          `${theme.spacing[1]} 0 0 0`,
+      padding:         0,
+      zIndex:          200,
+      maxHeight:       '240px',
+      overflowY:       'auto',
+    },
+
+    dropdownItem: {
+      display:       'flex',
+      flexDirection: 'column',
+      padding:       `${theme.spacing[2]} ${theme.spacing[3]}`,
+      cursor:        'pointer',
+      borderBottom:  `1px solid ${theme.colors.border}`,
+    },
+
+    ticker: {
+      fontWeight: theme.font.weight.bold,
+      fontSize:   theme.font.size.sm,
+      color:      theme.colors.textPrimary,
+    },
+
+    companyName: {
+      fontSize:     theme.font.size.xs,
+      color:        theme.colors.textSecondary,
+      whiteSpace:   'nowrap',
+      overflow:     'hidden',
+      textOverflow: 'ellipsis',
+    },
+
+    error: {
+      color:    theme.colors.danger,
+      fontSize: theme.font.size.xs,
+      margin:   0,
+    },
+
+      lockedWrapper: {
+      display:         'flex',
+      alignItems:      'center',
+      gap:             theme.spacing[2],
+    },
+
+    lockedDisplay: {
+      flex:            1,
+      height:          theme.ui.inputHeight,
+      padding:         `0 ${theme.spacing[3]}`,
+      display:         'flex',
+      alignItems:      'center',
+      gap:             theme.spacing[2],
+      backgroundColor: theme.colors.surfaceAlt,
+      borderWidth:     '1px',
+      borderStyle:     'solid',
+      borderColor:     theme.colors.accent,
+      borderRadius:    theme.radius.md,
+    },
+
+    lockedTicker: {
+      fontSize:   theme.font.size.sm,
+      fontWeight: theme.font.weight.bold,
+      color:      theme.colors.textPrimary,
+    },
+
+    lockedCompany: {
+      fontSize:     theme.font.size.xs,
+      color:        theme.colors.textMuted,
+      whiteSpace:   'nowrap',
+      overflow:     'hidden',
+      textOverflow: 'ellipsis',
+    },
+
+    clearBtn: {
+      width:           theme.ui.inputHeight,
+      height:          theme.ui.inputHeight,
+      flexShrink:      0,
+      fontSize:        theme.font.size.sm,
+      color:           theme.colors.textMuted,
+      backgroundColor: theme.colors.surfaceAlt,
+      borderWidth:     '1px',
+      borderStyle:     'solid',
+      borderColor:     theme.colors.border,
+      borderRadius:    theme.radius.md,
+      cursor:          'pointer',
+      display:         'flex',
+      alignItems:      'center',
+      justifyContent:  'center',
+    },
   };
 
   return (
@@ -159,143 +296,6 @@ const TickerSearch = ({ onSelect, onClear, disabled, autoFocus = false, width = 
 
     </div>
   );
-};
-
-const styles = {
-  wrapper: {
-    position:      'relative',
-    display:       'flex',
-    flexDirection: 'column',
-    gap:           theme.spacing[1],
-  },
-
-  inputWrapper: {
-    position:   'relative',
-    display:    'flex',
-    alignItems: 'center',
-  },
-
-  input: {
-    width:           '100%',
-    height:          theme.ui.inputHeight,
-    padding:         `0 ${theme.spacing[3]}`,
-    fontSize:        theme.font.size.sm,
-    fontFamily:      theme.font.family,
-    color:           theme.colors.textPrimary,
-    backgroundColor: theme.colors.surface,
-    borderWidth:     '1px',
-    borderStyle:     'solid',
-    borderColor:     theme.colors.border,
-    borderRadius:    theme.radius.md,
-    outline:         'none',
-  },
-
-  spinner: {
-    position: 'absolute',
-    right:    theme.spacing[3],
-    fontSize: theme.font.size.xs,
-    color:    theme.colors.textMuted,
-  },
-
-  dropdown: {
-    position:        'absolute',
-    top:             '100%',
-    left:            0,
-    right:           0,
-    minWidth:        '280px',
-    backgroundColor: theme.colors.surface,
-    borderWidth:     '1px',
-    borderStyle:     'solid',
-    borderColor:     theme.colors.border,
-    borderRadius:    theme.radius.md,
-    boxShadow:       theme.shadow.md,
-    listStyle:       'none',
-    margin:          `${theme.spacing[1]} 0 0 0`,
-    padding:         0,
-    zIndex:          200,
-    maxHeight:       '240px',
-    overflowY:       'auto',
-  },
-
-  dropdownItem: {
-    display:       'flex',
-    flexDirection: 'column',
-    padding:       `${theme.spacing[2]} ${theme.spacing[3]}`,
-    cursor:        'pointer',
-    borderBottom:  `1px solid ${theme.colors.border}`,
-  },
-
-  ticker: {
-    fontWeight: theme.font.weight.bold,
-    fontSize:   theme.font.size.sm,
-    color:      theme.colors.textPrimary,
-  },
-
-  companyName: {
-    fontSize:     theme.font.size.xs,
-    color:        theme.colors.textSecondary,
-    whiteSpace:   'nowrap',
-    overflow:     'hidden',
-    textOverflow: 'ellipsis',
-  },
-
-  error: {
-    color:    theme.colors.danger,
-    fontSize: theme.font.size.xs,
-    margin:   0,
-  },
-
-    lockedWrapper: {
-    display:         'flex',
-    alignItems:      'center',
-    gap:             theme.spacing[2],
-  },
-
-  lockedDisplay: {
-    flex:            1,
-    height:          theme.ui.inputHeight,
-    padding:         `0 ${theme.spacing[3]}`,
-    display:         'flex',
-    alignItems:      'center',
-    gap:             theme.spacing[2],
-    backgroundColor: theme.colors.surfaceAlt,
-    borderWidth:     '1px',
-    borderStyle:     'solid',
-    borderColor:     theme.colors.accent,
-    borderRadius:    theme.radius.md,
-  },
-
-  lockedTicker: {
-    fontSize:   theme.font.size.sm,
-    fontWeight: theme.font.weight.bold,
-    color:      theme.colors.textPrimary,
-  },
-
-  lockedCompany: {
-    fontSize:     theme.font.size.xs,
-    color:        theme.colors.textMuted,
-    whiteSpace:   'nowrap',
-    overflow:     'hidden',
-    textOverflow: 'ellipsis',
-  },
-
-  clearBtn: {
-    width:           theme.ui.inputHeight,
-    height:          theme.ui.inputHeight,
-    flexShrink:      0,
-    fontSize:        theme.font.size.sm,
-    color:           theme.colors.textMuted,
-    backgroundColor: theme.colors.surfaceAlt,
-    borderWidth:     '1px',
-    borderStyle:     'solid',
-    borderColor:     theme.colors.border,
-    borderRadius:    theme.radius.md,
-    cursor:          'pointer',
-    display:         'flex',
-    alignItems:      'center',
-    justifyContent:  'center',
-  },
-
 };
 
 export default TickerSearch;

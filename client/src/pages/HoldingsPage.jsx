@@ -34,12 +34,15 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { fetchMyWallet } from '../services/wallet';
 import { fetchMyPortfolio } from '../services/portfolio';
-import theme from '../styles/theme';
-import tableStyles from '../styles/tableStyles';
+import { useTheme } from '../context/ThemeContext';
+import { useMobile } from '../hooks/useBreakpoint';
+import getTableStyles from '../styles/tableStyles';
 
 const HoldingsPage = () => {
-  const navigate = useNavigate();
+  const theme    = useTheme();
+  const isMobile = useMobile();
   const { refreshKey } = useOutletContext();
+  const navigate = useNavigate();
 
   // openBuyPanel(ticker) / openSellPanel(ticker) — from Layout via Outlet context.
   // Passed to Buy/Sell buttons in each row so the panel opens pre-set to that ticker.
@@ -123,6 +126,121 @@ const HoldingsPage = () => {
     return theme.colors.textMuted;
   };
 
+  // ── Styles ────────────────────────────────────────────────────────────────────
+  const tableStyles = getTableStyles(theme);
+
+  const styles = {
+    page: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: theme.spacing[4],
+    },
+
+    stateMessage: {
+      color: theme.colors.textSecondary,
+      fontSize: theme.font.size.md,
+      padding: theme.spacing[8],
+      textAlign: 'center',
+    },
+
+    errorMessage: {
+      color: theme.colors.danger,
+      fontSize: theme.font.size.md,
+      padding: theme.spacing[8],
+      textAlign: 'center',
+      backgroundColor: theme.colors.dangerTint,
+      borderRadius: theme.radius.md,
+      border: `1px solid ${theme.colors.danger}`,
+    },
+
+    header: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: theme.spacing[8],
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.lg,
+      border: `1px solid ${theme.colors.border}`,
+      boxShadow: theme.shadow.sm,
+      padding: `${theme.spacing[4]} ${theme.spacing[6]}`,
+    },
+
+    headerMetric: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: theme.spacing[1],
+    },
+
+    headerLabel: {
+      fontSize: theme.font.size.xs,
+      fontWeight: theme.font.weight.semibold,
+      color: theme.colors.textMuted,
+      textTransform: 'uppercase',
+      letterSpacing: '0.05em',
+    },
+
+    headerValue: {
+      fontSize: theme.font.size.xl,
+      fontWeight: theme.font.weight.semibold,
+      color: theme.colors.textPrimary,
+    },
+
+    headerDivider: {
+      width: '1px',
+      height: '40px',
+      backgroundColor: theme.colors.border,
+    },
+
+    // ── Shared table styles ─────────────────────────────────────────────────────
+    ...tableStyles,
+
+    // Override tableWrapper to allow horizontal scroll on mobile
+    tableWrapper: {
+      ...tableStyles.tableWrapper,
+      overflowX: isMobile ? 'auto' : 'hidden',
+    },
+
+    // ── Row action buttons ──────────────────────────────────────────────────────
+
+    tdAction: {
+      padding: `${theme.spacing[2]} ${theme.spacing[3]}`,
+      whiteSpace: 'nowrap',
+    },
+
+    actionBtn: {
+      height: '26px',
+      padding: `0 ${theme.spacing[3]}`,
+      fontSize: theme.font.size.xs,
+      fontWeight: theme.font.weight.semibold,
+      borderRadius: theme.radius.full,
+      borderWidth: '1px',
+      borderStyle: 'solid',
+      cursor: 'pointer',
+      transition: `background-color ${theme.transition.fast}, color ${theme.transition.fast}, border-color ${theme.transition.fast}`,
+      userSelect: 'none',
+    },
+
+    buyBtn: {
+      color: theme.colors.white,
+      borderColor: theme.colors.success,
+      backgroundColor: theme.colors.success,
+    },
+    buyBtnHover: {
+      color: theme.colors.successHover,
+      borderColor: theme.colors.successHover,
+      backgroundColor: theme.colors.successTint,
+    },
+
+    sellBtn: {
+      color: theme.colors.white,
+      borderColor: theme.colors.danger,
+      backgroundColor: theme.colors.danger,
+    },
+    sellBtnHover: {
+      color: theme.colors.dangerHover,
+      borderColor: theme.colors.dangerHover,
+      backgroundColor: theme.colors.dangerTint,
+    },
+  };
 
   // ── Render states ─────────────────────────────────────────────────────────────
 
@@ -304,116 +422,5 @@ const HoldingsPage = () => {
     </div>
   );
 };
-
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const styles = {
-  page: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: theme.spacing[4],
-  },
-
-  stateMessage: {
-    color: theme.colors.textSecondary,
-    fontSize: theme.font.size.md,
-    padding: theme.spacing[8],
-    textAlign: 'center',
-  },
-
-  errorMessage: {
-    color: theme.colors.danger,
-    fontSize: theme.font.size.md,
-    padding: theme.spacing[8],
-    textAlign: 'center',
-    backgroundColor: theme.colors.dangerTint,
-    borderRadius: theme.radius.md,
-    border: `1px solid ${theme.colors.danger}`,
-  },
-
-  header: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: theme.spacing[8],
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    border: `1px solid ${theme.colors.border}`,
-    boxShadow: theme.shadow.sm,
-    padding: `${theme.spacing[4]} ${theme.spacing[6]}`,
-  },
-
-  headerMetric: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: theme.spacing[1],
-  },
-
-  headerLabel: {
-    fontSize: theme.font.size.xs,
-    fontWeight: theme.font.weight.semibold,
-    color: theme.colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-  },
-
-  headerValue: {
-    fontSize: theme.font.size.xl,
-    fontWeight: theme.font.weight.semibold,
-    color: theme.colors.textPrimary,
-  },
-
-  headerDivider: {
-    width: '1px',
-    height: '40px',
-    backgroundColor: theme.colors.border,
-  },
-
-  // ── Shared table styles ─────────────────────────────────────────────────────
-  ...tableStyles,
-
-  // ── Row action buttons ──────────────────────────────────────────────────────
-
-  tdAction: {
-    padding: `${theme.spacing[2]} ${theme.spacing[3]}`,
-    whiteSpace: 'nowrap',
-  },
-
-  actionBtn: {
-    height: '26px',
-    padding: `0 ${theme.spacing[3]}`,
-    fontSize: theme.font.size.xs,
-    fontWeight: theme.font.weight.semibold,
-    borderRadius: theme.radius.full,
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    cursor: 'pointer',
-    transition: `background-color ${theme.transition.fast}, color ${theme.transition.fast}, border-color ${theme.transition.fast}`,
-    userSelect: 'none',
-  },
-
-  buyBtn: {
-    color: theme.colors.white,
-    borderColor: theme.colors.success,
-    backgroundColor: theme.colors.success,
-  },
-  buyBtnHover: {
-    color: theme.colors.successHover,
-    borderColor: theme.colors.successHover,
-    backgroundColor: theme.colors.successTint,
-  },
-
-  sellBtn: {
-    color: theme.colors.white,
-    borderColor: theme.colors.danger,
-    backgroundColor: theme.colors.danger,
-  },
-  sellBtnHover: {
-    color: theme.colors.dangerHover,
-    borderColor: theme.colors.dangerHover,
-    backgroundColor: theme.colors.dangerTint,
-  },
-};
-
 
 export default HoldingsPage;

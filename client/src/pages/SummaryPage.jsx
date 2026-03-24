@@ -33,12 +33,15 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { fetchMyWallet } from '../services/wallet';
 import { fetchMyPortfolio } from '../services/portfolio';
-import theme from '../styles/theme';
-import tableStyles from '../styles/tableStyles';
+import { useTheme } from '../context/ThemeContext';
+import { useMobile } from '../hooks/useBreakpoint';
+import getTableStyles from '../styles/tableStyles';
 
 const SummaryPage = () => {
-    const navigate = useNavigate();
-    const { refreshKey } = useOutletContext();
+  const navigate = useNavigate();
+  const { refreshKey } = useOutletContext();
+  const theme    = useTheme();
+  const isMobile = useMobile();
   
   const [wallet,    setWallet]    = useState(null);
   const [portfolio, setPortfolio] = useState(null);
@@ -168,6 +171,177 @@ const SummaryPage = () => {
     return theme.colors.textMuted;
   };
 
+  // ── Styles ────────────────────────────────────────────────────────────────────
+  const tableStyles = getTableStyles(theme);
+
+  const styles = {
+    page: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: theme.spacing[6],
+    },
+
+    // ── Loading / error states ──────────────────────────────────────────────────
+
+    stateMessage: {
+      color: theme.colors.textSecondary,
+      fontSize: theme.font.size.md,
+      padding: theme.spacing[8],
+      textAlign: 'center',
+    },
+
+    errorMessage: {
+      color: theme.colors.danger,
+      fontSize: theme.font.size.md,
+      padding: theme.spacing[8],
+      textAlign: 'center',
+      backgroundColor: theme.colors.dangerTint,
+      borderRadius: theme.radius.md,
+      border: `1px solid ${theme.colors.danger}`,
+    },
+
+    // ── Wallet card ─────────────────────────────────────────────────────────────
+
+    card: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.lg,
+      border: `1px solid ${theme.colors.border}`,
+      boxShadow: theme.shadow.sm,
+      padding: theme.spacing[6],
+      display: 'flex',
+      flexDirection: 'column',
+      gap: theme.spacing[4],
+    },
+
+    // Total Equity block — most prominent element in the card
+    equityBlock: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: theme.spacing[1],
+    },
+
+    equityLabel: {
+      fontSize: theme.font.size.sm,
+      fontWeight: theme.font.weight.semibold,
+      color: theme.colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: '0.05em',
+    },
+
+    equityValue: {
+      fontSize: theme.font.size['2xl'],
+      fontWeight: theme.font.weight.bold,
+      color: theme.colors.textPrimary,
+      lineHeight: theme.font.lineHeight.tight,
+    },
+
+    equitySubLabel: {
+      fontSize: theme.font.size.xs,
+      color: theme.colors.textMuted,
+    },
+
+    // Horizontal rule between card sections
+    divider: {
+      height: '1px',
+      backgroundColor: theme.colors.border,
+      border: 'none',
+      margin: `${theme.spacing[1]} 0`,
+    },
+
+    // Medium metrics row — Available Cash + Total Investments
+    metricsRow: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: theme.spacing[8],
+    },
+
+    metric: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: theme.spacing[1],
+    },
+
+    metricLabel: {
+      fontSize: theme.font.size.sm,
+      color: theme.colors.textSecondary,
+    },
+
+    metricValue: {
+      fontSize: theme.font.size.xl,
+      fontWeight: theme.font.weight.semibold,
+      color: theme.colors.textPrimary,
+    },
+
+    // Vertical divider between medium metrics
+    metricDivider: {
+      width: '1px',
+      height: '40px',
+      backgroundColor: theme.colors.border,
+      alignSelf: 'center',
+    },
+
+    // Small stats row — P/L, Day Change, Book Value
+    statsRow: {
+      display: 'flex',
+      gap: theme.spacing[8],
+      flexWrap: 'wrap',
+    },
+
+    stat: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: theme.spacing[1],
+    },
+
+    statLabel: {
+      fontSize: theme.font.size.xs,
+      color: theme.colors.textMuted,
+      textTransform: 'uppercase',
+      letterSpacing: '0.04em',
+    },
+
+    statValue: {
+      fontSize: theme.font.size.md,
+      fontWeight: theme.font.weight.medium,
+      color: theme.colors.textPrimary,
+    },
+
+    statPercent: {
+      fontSize: theme.font.size.sm,
+      marginLeft: theme.spacing[1],
+    },
+
+    // ── Top movers ──────────────────────────────────────────────────────────────
+
+    moversSection: {
+      display: 'grid',
+      gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+      gap: theme.spacing[4],
+    },
+
+    moversCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.lg,
+      border: `1px solid ${theme.colors.border}`,
+      boxShadow: theme.shadow.sm,
+      overflow: 'hidden',
+    },
+
+    moversHeading: {
+      fontSize: theme.font.size.sm,
+      fontWeight: theme.font.weight.semibold,
+      color: theme.colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: '0.05em',
+      padding: `${theme.spacing[3]} ${theme.spacing[4]}`,
+    },
+
+    moversTable: tableStyles.table,
+    moversTh:    tableStyles.th,
+    moversTr:    tableStyles.tr,
+    moversTd:    tableStyles.td,
+    tickerLink:  tableStyles.tickerLink,
+  };
 
   // ── Render states ─────────────────────────────────────────────────────────────
 
@@ -382,179 +556,6 @@ const SummaryPage = () => {
 
     </div>
   );
-};
-
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const styles = {
-  page: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: theme.spacing[6],
-  },
-
-  // ── Loading / error states ──────────────────────────────────────────────────
-
-  stateMessage: {
-    color: theme.colors.textSecondary,
-    fontSize: theme.font.size.md,
-    padding: theme.spacing[8],
-    textAlign: 'center',
-  },
-
-  errorMessage: {
-    color: theme.colors.danger,
-    fontSize: theme.font.size.md,
-    padding: theme.spacing[8],
-    textAlign: 'center',
-    backgroundColor: theme.colors.dangerTint,
-    borderRadius: theme.radius.md,
-    border: `1px solid ${theme.colors.danger}`,
-  },
-
-  // ── Wallet card ─────────────────────────────────────────────────────────────
-
-  card: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    border: `1px solid ${theme.colors.border}`,
-    boxShadow: theme.shadow.sm,
-    padding: theme.spacing[6],
-    display: 'flex',
-    flexDirection: 'column',
-    gap: theme.spacing[4],
-  },
-
-  // Total Equity block — most prominent element in the card
-  equityBlock: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: theme.spacing[1],
-  },
-
-  equityLabel: {
-    fontSize: theme.font.size.sm,
-    fontWeight: theme.font.weight.semibold,
-    color: theme.colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-  },
-
-  equityValue: {
-    fontSize: theme.font.size['2xl'],
-    fontWeight: theme.font.weight.bold,
-    color: theme.colors.textPrimary,
-    lineHeight: theme.font.lineHeight.tight,
-  },
-
-  equitySubLabel: {
-    fontSize: theme.font.size.xs,
-    color: theme.colors.textMuted,
-  },
-
-  // Horizontal rule between card sections
-  divider: {
-    height: '1px',
-    backgroundColor: theme.colors.border,
-    border: 'none',
-    margin: `${theme.spacing[1]} 0`,
-  },
-
-  // Medium metrics row — Available Cash + Total Investments
-  metricsRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: theme.spacing[8],
-  },
-
-  metric: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: theme.spacing[1],
-  },
-
-  metricLabel: {
-    fontSize: theme.font.size.sm,
-    color: theme.colors.textSecondary,
-  },
-
-  metricValue: {
-    fontSize: theme.font.size.xl,
-    fontWeight: theme.font.weight.semibold,
-    color: theme.colors.textPrimary,
-  },
-
-  // Vertical divider between medium metrics
-  metricDivider: {
-    width: '1px',
-    height: '40px',
-    backgroundColor: theme.colors.border,
-    alignSelf: 'center',
-  },
-
-  // Small stats row — P/L, Day Change, Book Value
-  statsRow: {
-    display: 'flex',
-    gap: theme.spacing[8],
-    flexWrap: 'wrap',
-  },
-
-  stat: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: theme.spacing[1],
-  },
-
-  statLabel: {
-    fontSize: theme.font.size.xs,
-    color: theme.colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
-  },
-
-  statValue: {
-    fontSize: theme.font.size.md,
-    fontWeight: theme.font.weight.medium,
-    color: theme.colors.textPrimary,
-  },
-
-  statPercent: {
-    fontSize: theme.font.size.sm,
-    marginLeft: theme.spacing[1],
-  },
-
-  // ── Top movers ──────────────────────────────────────────────────────────────
-
-  moversSection: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: theme.spacing[4],
-  },
-
-  moversCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    border: `1px solid ${theme.colors.border}`,
-    boxShadow: theme.shadow.sm,
-    overflow: 'hidden',
-  },
-
-  moversHeading: {
-    fontSize: theme.font.size.sm,
-    fontWeight: theme.font.weight.semibold,
-    color: theme.colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-    padding: `${theme.spacing[3]} ${theme.spacing[4]}`,
-  },
-
-  moversTable: tableStyles.table,
-  moversTh:    tableStyles.th,
-  moversTr:    tableStyles.tr,
-  moversTd:    tableStyles.td,
-  tickerLink:  tableStyles.tickerLink,
-
 };
 
 export default SummaryPage;

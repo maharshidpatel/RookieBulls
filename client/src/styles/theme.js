@@ -246,7 +246,7 @@ const darkTheme = {
     // Text
     textPrimary:   '#f1f5f9',
     textSecondary: '#94a3b8',
-    textMuted:     '#475569',
+    textMuted:     '#64748b',
 
     // Brand / Action
     accent:        '#60a5fa',

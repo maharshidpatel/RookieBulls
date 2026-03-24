@@ -31,7 +31,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { verifyEmail, resendVerification } from '../services/auth';
-import theme from '../styles/theme';
+import { useTheme } from '../context/ThemeContext';
 
 function useHover() {
   const [hovered, setHovered] = useState(false);
@@ -45,6 +45,8 @@ function useHover() {
 }
 
 export default function VerifyPage() {
+  const theme = useTheme();
+
   /*
    * useParams reads URL parameters defined in the route.
    * Route defined as /verify/:token in App.jsx.
@@ -107,6 +109,68 @@ export default function VerifyPage() {
     }
   }
 
+  const s = {
+    /*
+     * Full-page centered layout.
+     * No TopNav or SecondNav — this is a standalone public page.
+     * Background matches the app background so it feels consistent.
+     */
+    page: {
+      minHeight:       '100vh',
+      display:         'flex',
+      alignItems:      'center',
+      justifyContent:  'center',
+      backgroundColor: theme.colors.background,
+      fontFamily:      theme.font.family,
+      padding:         theme.spacing[4],
+    },
+
+    card: {
+      backgroundColor: theme.colors.surface,
+      borderRadius:    theme.radius.lg,
+      border:          `1px solid ${theme.colors.border}`,
+      boxShadow:       theme.shadow.md,
+      padding:         `${theme.spacing[8]} ${theme.spacing[8]}`,
+      width:           '100%',
+      maxWidth:        '440px',
+      display:         'flex',
+      flexDirection:   'column',
+      gap:             theme.spacing[6],
+    },
+
+    // ── Brand row ──────────────────────────────────────────────
+    brandRow: {
+      display:    'flex',
+      alignItems: 'center',
+      gap:        theme.spacing[3],
+    },
+
+    logoMark: {
+      width:           '36px',
+      height:          '36px',
+      borderRadius:    theme.radius.sm,
+      backgroundColor: theme.colors.success,
+      display:         'flex',
+      alignItems:      'center',
+      justifyContent:  'center',
+      flexShrink:      0,
+    },
+
+    logoText: {
+      fontSize:      theme.font.size.xs,
+      fontWeight:    theme.font.weight.bold,
+      color:         theme.colors.white,
+      letterSpacing: '0.5px',
+    },
+
+    brandName: {
+      fontSize:      theme.font.size.lg,
+      fontWeight:    theme.font.weight.bold,
+      color:         theme.colors.textPrimary,
+      letterSpacing: '-0.3px',
+    },
+  };
+
   return (
     <div style={s.page}>
       <div style={s.card}>
@@ -151,6 +215,40 @@ export default function VerifyPage() {
 
 // ── LOADING STATE ─────────────────────────────────────────────────────────────
 function LoadingState() {
+  const theme = useTheme();
+
+  const s = {
+    stateBox: {
+      display:       'flex',
+      flexDirection: 'column',
+      alignItems:    'center',
+      gap:           theme.spacing[3],
+      textAlign:     'center',
+    },
+    spinner: {
+      width:           '48px',
+      height:          '48px',
+      borderRadius:    theme.radius.full,
+      border:          `3px solid ${theme.colors.border}`,
+      borderTopColor:  theme.colors.success,
+      animation:       'spin 0.8s linear infinite',
+      marginBottom:    theme.spacing[1],
+    },
+    stateTitle: {
+      margin:     0,
+      fontSize:   theme.font.size.xl,
+      fontWeight: theme.font.weight.bold,
+      color:      theme.colors.textPrimary,
+    },
+    stateSubtitle: {
+      margin:     0,
+      fontSize:   theme.font.size.sm,
+      color:      theme.colors.textSecondary,
+      lineHeight: theme.font.lineHeight.normal,
+      maxWidth:   '340px',
+    },
+  };
+
   return (
     <div style={s.stateBox}>
       <div style={s.spinner} />
@@ -162,6 +260,65 @@ function LoadingState() {
 
 // ── SUCCESS STATE ─────────────────────────────────────────────────────────────
 function SuccessState({ navigate, loginHovered, loginHoverProps }) {
+  const theme = useTheme();
+
+  const s = {
+    stateBox: {
+      display:       'flex',
+      flexDirection: 'column',
+      alignItems:    'center',
+      gap:           theme.spacing[3],
+      textAlign:     'center',
+    },
+    iconWrap: {
+      width:          '64px',
+      height:         '64px',
+      borderRadius:   theme.radius.full,
+      display:        'flex',
+      alignItems:     'center',
+      justifyContent: 'center',
+      marginBottom:   theme.spacing[1],
+    },
+    iconChar: {
+      fontSize:   '26px',
+      fontWeight: theme.font.weight.bold,
+      lineHeight: 1,
+    },
+    stateTitle: {
+      margin:     0,
+      fontSize:   theme.font.size.xl,
+      fontWeight: theme.font.weight.bold,
+      color:      theme.colors.textPrimary,
+    },
+    stateSubtitle: {
+      margin:     0,
+      fontSize:   theme.font.size.sm,
+      color:      theme.colors.textSecondary,
+      lineHeight: theme.font.lineHeight.normal,
+      maxWidth:   '340px',
+    },
+    primaryBtn: {
+      width:           '100%',
+      height:          '44px',
+      fontSize:        theme.font.size.sm,
+      fontWeight:      theme.font.weight.semibold,
+      backgroundColor: theme.colors.success,
+      color:           theme.colors.white,
+      border:          `2px solid ${theme.colors.success}`,
+      borderRadius:    theme.radius.md,
+      cursor:          'pointer',
+      fontFamily:      'inherit',
+      letterSpacing:   '0.01em',
+      transition:      `all ${theme.transition.fast}`,
+      marginTop:       theme.spacing[1],
+    },
+    primaryBtnHover: {
+      backgroundColor: theme.colors.successTint,
+      color:           theme.colors.successHover,
+      border:          `2px solid ${theme.colors.successHover}`,
+    },
+  };
+
   return (
     <div style={s.stateBox}>
       <div style={{ ...s.iconWrap, backgroundColor: theme.colors.successTint, border: `2px solid ${theme.colors.success}` }}>
@@ -198,7 +355,120 @@ function ResendState({
   navigate, resendHovered, resendHoverProps,
   loginHovered, loginHoverProps,
 }) {
+  const theme = useTheme();
   const isExpired = status === 'expired';
+
+  const s = {
+    stateBox: {
+      display:       'flex',
+      flexDirection: 'column',
+      alignItems:    'center',
+      gap:           theme.spacing[3],
+      textAlign:     'center',
+    },
+    iconWrap: {
+      width:          '64px',
+      height:         '64px',
+      borderRadius:   theme.radius.full,
+      display:        'flex',
+      alignItems:     'center',
+      justifyContent: 'center',
+      marginBottom:   theme.spacing[1],
+    },
+    iconChar: {
+      fontSize:   '26px',
+      fontWeight: theme.font.weight.bold,
+      lineHeight:  1,
+    },
+    stateTitle: {
+      margin:     0,
+      fontSize:   theme.font.size.xl,
+      fontWeight: theme.font.weight.bold,
+      color:      theme.colors.textPrimary,
+    },
+    stateSubtitle: {
+      margin:     0,
+      fontSize:   theme.font.size.sm,
+      color:      theme.colors.textSecondary,
+      lineHeight: theme.font.lineHeight.normal,
+      maxWidth:   '340px',
+    },
+    resendForm: {
+      display:       'flex',
+      flexDirection: 'column',
+      gap:           theme.spacing[3],
+      width:         '100%',
+      marginTop:     theme.spacing[1],
+    },
+    field: {
+      display:       'flex',
+      flexDirection: 'column',
+      gap:           '5px',
+      textAlign:     'left',
+    },
+    label: {
+      fontSize:   theme.font.size.sm,
+      fontWeight: theme.font.weight.medium,
+      color:      theme.colors.textPrimary,
+    },
+    input: {
+      height:          theme.ui.inputHeight,
+      padding:         `0 ${theme.spacing[3]}`,
+      fontSize:        theme.font.size.sm,
+      border:          `1px solid ${theme.colors.border}`,
+      borderRadius:    theme.radius.md,
+      outline:         'none',
+      color:           theme.colors.textPrimary,
+      backgroundColor: theme.colors.surface,
+      fontFamily:      'inherit',
+      width:           '100%',
+    },
+    resendError: {
+      margin:     0,
+      fontSize:   theme.font.size.xs,
+      color:      theme.colors.danger,
+      textAlign:  'left',
+    },
+    primaryBtn: {
+      width:           '100%',
+      height:          '44px',
+      fontSize:        theme.font.size.sm,
+      fontWeight:      theme.font.weight.semibold,
+      backgroundColor: theme.colors.success,
+      color:           theme.colors.white,
+      border:          `2px solid ${theme.colors.success}`,
+      borderRadius:    theme.radius.md,
+      cursor:          'pointer',
+      fontFamily:      'inherit',
+      letterSpacing:   '0.01em',
+      transition:      `all ${theme.transition.fast}`,
+      marginTop:       theme.spacing[1],
+    },
+    primaryBtnHover: {
+      backgroundColor: theme.colors.successTint,
+      color:           theme.colors.successHover,
+      border:          `2px solid ${theme.colors.successHover}`,
+    },
+    secondaryBtn: {
+      width:           '100%',
+      height:          '44px',
+      fontSize:        theme.font.size.sm,
+      fontWeight:      theme.font.weight.semibold,
+      backgroundColor: 'transparent',
+      color:           theme.colors.success,
+      border:          `2px solid ${theme.colors.success}`,
+      borderRadius:    theme.radius.md,
+      cursor:          'pointer',
+      fontFamily:      'inherit',
+      letterSpacing:   '0.01em',
+      transition:      `all ${theme.transition.fast}`,
+    },
+    secondaryBtnHover: {
+      backgroundColor: theme.colors.successTint,
+      color:           theme.colors.successHover,
+      border:          `2px solid ${theme.colors.successHover}`,
+    },
+  };
 
   /*
    * When resend succeeds, replace the entire state content
@@ -239,7 +509,7 @@ function ResendState({
     <div style={s.stateBox}>
       <div style={{
         ...s.iconWrap,
-        backgroundColor: '#fef2f2',
+        backgroundColor: theme.colors.dangerTint,
         border: `2px solid ${theme.colors.danger}`,
       }}>
         <span style={{ ...s.iconChar, color: theme.colors.danger }}>
@@ -302,217 +572,3 @@ function ResendState({
     </div>
   );
 }
-
-// ── STYLES ────────────────────────────────────────────────────────────────────
-const s = {
-  /*
-   * Full-page centered layout.
-   * No TopNav or SecondNav — this is a standalone public page.
-   * Background matches the app background so it feels consistent.
-   */
-  page: {
-    minHeight:       '100vh',
-    display:         'flex',
-    alignItems:      'center',
-    justifyContent:  'center',
-    backgroundColor: theme.colors.background,
-    fontFamily:      theme.font.family,
-    padding:         theme.spacing[4],
-  },
-
-  card: {
-    backgroundColor: theme.colors.surface,
-    borderRadius:    theme.radius.lg,
-    border:          `1px solid ${theme.colors.border}`,
-    boxShadow:       theme.shadow.md,
-    padding:         `${theme.spacing[8]} ${theme.spacing[8]}`,
-    width:           '100%',
-    maxWidth:        '440px',
-    display:         'flex',
-    flexDirection:   'column',
-    gap:             theme.spacing[6],
-  },
-
-  // ── Brand row ──────────────────────────────────────────────
-  brandRow: {
-    display:    'flex',
-    alignItems: 'center',
-    gap:        theme.spacing[3],
-  },
-
-  logoMark: {
-    width:           '36px',
-    height:          '36px',
-    borderRadius:    theme.radius.sm,
-    backgroundColor: theme.colors.success,
-    display:         'flex',
-    alignItems:      'center',
-    justifyContent:  'center',
-    flexShrink:      0,
-  },
-
-  logoText: {
-    fontSize:      theme.font.size.xs,
-    fontWeight:    theme.font.weight.bold,
-    color:         theme.colors.white,
-    letterSpacing: '0.5px',
-  },
-
-  brandName: {
-    fontSize:      theme.font.size.lg,
-    fontWeight:    theme.font.weight.bold,
-    color:         theme.colors.textPrimary,
-    letterSpacing: '-0.3px',
-  },
-
-  // ── State box ──────────────────────────────────────────────
-  stateBox: {
-    display:       'flex',
-    flexDirection: 'column',
-    alignItems:    'center',
-    gap:           theme.spacing[3],
-    textAlign:     'center',
-  },
-
-  iconWrap: {
-    width:          '64px',
-    height:         '64px',
-    borderRadius:   theme.radius.full,
-    display:        'flex',
-    alignItems:     'center',
-    justifyContent: 'center',
-    marginBottom:   theme.spacing[1],
-  },
-
-  iconChar: {
-    fontSize:   '26px',
-    fontWeight: theme.font.weight.bold,
-    lineHeight:  1,
-  },
-
-  stateTitle: {
-    margin:     0,
-    fontSize:   theme.font.size.xl,
-    fontWeight: theme.font.weight.bold,
-    color:      theme.colors.textPrimary,
-  },
-
-  stateSubtitle: {
-    margin:     0,
-    fontSize:   theme.font.size.sm,
-    color:      theme.colors.textSecondary,
-    lineHeight: theme.font.lineHeight.normal,
-    maxWidth:   '340px',
-  },
-
-  // ── Spinner ────────────────────────────────────────────────
-  /*
-   * Pure CSS spinner — no package needed.
-   * border creates a circle, one side is transparent to create the gap.
-   * Animation is defined in global.css @keyframes spin.
-   * If spin is not in global.css yet, it is added in the note below.
-   */
-  spinner: {
-    width:           '48px',
-    height:          '48px',
-    borderRadius:    theme.radius.full,
-    border:          `3px solid ${theme.colors.border}`,
-    borderTopColor:  theme.colors.success,
-    animation:       'spin 0.8s linear infinite',
-    marginBottom:    theme.spacing[1],
-  },
-
-  // ── Resend form ────────────────────────────────────────────
-  resendForm: {
-    display:       'flex',
-    flexDirection: 'column',
-    gap:           theme.spacing[3],
-    width:         '100%',
-    marginTop:     theme.spacing[1],
-  },
-
-  field: {
-    display:       'flex',
-    flexDirection: 'column',
-    gap:           '5px',
-    textAlign:     'left',
-  },
-
-  label: {
-    fontSize:   theme.font.size.sm,
-    fontWeight: theme.font.weight.medium,
-    color:      theme.colors.textPrimary,
-  },
-
-  input: {
-    height:          theme.ui.inputHeight,
-    padding:         `0 ${theme.spacing[3]}`,
-    fontSize:        theme.font.size.sm,
-    border:          `1px solid ${theme.colors.border}`,
-    borderRadius:    theme.radius.md,
-    outline:         'none',
-    color:           theme.colors.textPrimary,
-    backgroundColor: theme.colors.surface,
-    fontFamily:      'inherit',
-    width:           '100%',
-  },
-
-  resendError: {
-    margin:     0,
-    fontSize:   theme.font.size.xs,
-    color:      theme.colors.danger,
-    textAlign:  'left',
-  },
-
-  sentBox: {
-    display:       'flex',
-    flexDirection: 'column',
-    alignItems:    'center',
-    gap:           theme.spacing[2],
-    width:         '100%',
-  },
-
-  // ── Buttons ────────────────────────────────────────────────
-  primaryBtn: {
-    width:           '100%',
-    height:          '44px',
-    fontSize:        theme.font.size.sm,
-    fontWeight:      theme.font.weight.semibold,
-    backgroundColor: theme.colors.success,
-    color:           theme.colors.white,
-    border:          `2px solid ${theme.colors.success}`,
-    borderRadius:    theme.radius.md,
-    cursor:          'pointer',
-    fontFamily:      'inherit',
-    letterSpacing:   '0.01em',
-    transition:      `all ${theme.transition.fast}`,
-    marginTop:       theme.spacing[1],
-  },
-
-  primaryBtnHover: {
-    backgroundColor: theme.colors.successTint,
-    color:           theme.colors.successHover,
-    border:          `2px solid ${theme.colors.successHover}`,
-  },
-
-  secondaryBtn: {
-    width:           '100%',
-    height:          '44px',
-    fontSize:        theme.font.size.sm,
-    fontWeight:      theme.font.weight.semibold,
-    backgroundColor: 'transparent',
-    color:           theme.colors.success,
-    border:          `2px solid ${theme.colors.success}`,
-    borderRadius:    theme.radius.md,
-    cursor:          'pointer',
-    fontFamily:      'inherit',
-    letterSpacing:   '0.01em',
-    transition:      `all ${theme.transition.fast}`,
-  },
-
-  secondaryBtnHover: {
-    backgroundColor: theme.colors.successTint,
-    color:           theme.colors.successHover,
-    border:          `2px solid ${theme.colors.successHover}`,
-  },
-};

@@ -30,10 +30,13 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOutletContext } from 'react-router-dom';
 import fetchTradeHistory from '../services/history';
-import theme from '../styles/theme';
-import tableStyles from '../styles/tableStyles';
+import { useTheme } from '../context/ThemeContext';
+import { useMobile } from '../hooks/useBreakpoint';
+import getTableStyles from '../styles/tableStyles';
 
 const HistoryPage = () => {
+  const theme    = useTheme();
+  const isMobile = useMobile();
   const navigate = useNavigate();
   const { refreshKey } = useOutletContext();
 
@@ -160,6 +163,99 @@ const HistoryPage = () => {
     }).format(date) + ' ET';
   };
 
+  // ── Styles ────────────────────────────────────────────────────────────────────
+  const tableStyles = getTableStyles(theme);
+
+  const styles = {
+    page: {
+      display:       'flex',
+      flexDirection: 'column',
+      gap:           theme.spacing[4],
+    },
+
+    stateMessage: {
+      color:     theme.colors.textSecondary,
+      fontSize:  theme.font.size.md,
+      padding:   theme.spacing[8],
+      textAlign: 'center',
+    },
+
+    errorMessage: {
+      color:           theme.colors.danger,
+      fontSize:        theme.font.size.md,
+      padding:         theme.spacing[8],
+      textAlign:       'center',
+      backgroundColor: theme.colors.dangerTint,
+      borderRadius:    theme.radius.md,
+      border:          `1px solid ${theme.colors.danger}`,
+    },
+
+    // ── Page header ─────────────────────────────────────────────────────────────
+
+    pageHeader: {
+      display:        'flex',
+      flexDirection:  isMobile ? 'column' : 'row',
+      alignItems:     isMobile ? 'flex-start' : 'center',
+      justifyContent: 'space-between',
+      gap:            isMobile ? theme.spacing[2] : undefined,
+    },
+
+    pageTitleRow: {
+      display:    'flex',
+      alignItems: 'baseline',
+      gap:        theme.spacing[3],
+    },
+
+    pageTitle: {
+      fontSize:   theme.font.size.lg,
+      fontWeight: theme.font.weight.semibold,
+      color:      theme.colors.textPrimary,
+      whiteSpace: 'nowrap',
+    },
+
+    tradeCount: {
+      fontSize:   theme.font.size.sm,
+      color:      theme.colors.textMuted,
+      whiteSpace: 'nowrap',
+    },
+
+    // ── Month dropdown ──────────────────────────────────────────────────────────
+    //
+    // Styled as a pill — consistent with the nav pill language used throughout.
+    // Native <select> element — no custom dropdown needed at this scale.
+    // appearance: 'none' would remove the native arrow — keeping it for clarity.
+    //
+    dropdown: {
+      fontSize:        theme.font.size.sm,
+      fontWeight:      theme.font.weight.medium,
+      color:           theme.colors.textSecondary,
+      backgroundColor: theme.colors.surface,
+      borderWidth:     '1px',
+      borderStyle:     'solid',
+      borderColor:     theme.colors.border,
+      borderRadius:    theme.radius.md,
+      padding:         `${theme.spacing[2]} ${theme.spacing[4]}`,
+      cursor:          'pointer',
+      outline:         'none',
+      transition:      `border-color ${theme.transition.fast}, color ${theme.transition.fast}`,
+      fontFamily:      theme.font.family,
+      height:          theme.ui.inputHeight,
+    },
+
+    dropdownHover: {
+      borderColor: theme.colors.accent,
+      color:       theme.colors.accent,
+    },
+
+    // ── Shared table styles ─────────────────────────────────────────────────────
+    ...tableStyles,
+
+    // Override tableWrapper to allow horizontal scroll on mobile
+    tableWrapper: {
+      ...tableStyles.tableWrapper,
+      overflowX: isMobile ? 'auto' : 'hidden',
+    },
+  };
 
   // ── Render states ─────────────────────────────────────────────────────────────
 
@@ -304,90 +400,5 @@ const HistoryPage = () => {
     </div>
   );
 };
-
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const styles = {
-  page: {
-    display:       'flex',
-    flexDirection: 'column',
-    gap:           theme.spacing[4],
-  },
-
-  stateMessage: {
-    color:     theme.colors.textSecondary,
-    fontSize:  theme.font.size.md,
-    padding:   theme.spacing[8],
-    textAlign: 'center',
-  },
-
-  errorMessage: {
-    color:           theme.colors.danger,
-    fontSize:        theme.font.size.md,
-    padding:         theme.spacing[8],
-    textAlign:       'center',
-    backgroundColor: theme.colors.dangerTint,
-    borderRadius:    theme.radius.md,
-    border:          `1px solid ${theme.colors.danger}`,
-  },
-
-  // ── Page header ─────────────────────────────────────────────────────────────
-
-  pageHeader: {
-    display:        'flex',
-    alignItems:     'center',
-    justifyContent: 'space-between',
-  },
-
-  pageTitleRow: {
-    display:    'flex',
-    alignItems: 'baseline',
-    gap:        theme.spacing[3],
-  },
-
-  pageTitle: {
-    fontSize:   theme.font.size.lg,
-    fontWeight: theme.font.weight.semibold,
-    color:      theme.colors.textPrimary,
-  },
-
-  tradeCount: {
-    fontSize: theme.font.size.sm,
-    color:    theme.colors.textMuted,
-  },
-
-  // ── Month dropdown ──────────────────────────────────────────────────────────
-  //
-  // Styled as a pill — consistent with the nav pill language used throughout.
-  // Native <select> element — no custom dropdown needed at this scale.
-  // appearance: 'none' would remove the native arrow — keeping it for clarity.
-  //
-  dropdown: {
-    fontSize:        theme.font.size.sm,
-    fontWeight:      theme.font.weight.medium,
-    color:           theme.colors.textSecondary,
-    backgroundColor: theme.colors.surface,
-    borderWidth:     '1px',
-    borderStyle:     'solid',
-    borderColor:     theme.colors.border,
-    borderRadius:    theme.radius.md,
-    padding:         `${theme.spacing[2]} ${theme.spacing[4]}`,
-    cursor:          'pointer',
-    outline:         'none',
-    transition:      `border-color ${theme.transition.fast}, color ${theme.transition.fast}`,
-    fontFamily:      theme.font.family,
-    height:          theme.ui.inputHeight,
-  },
-
-  dropdownHover: {
-    borderColor: theme.colors.accent,
-    color:       theme.colors.accent,
-  },
-
-  // ── Shared table styles ─────────────────────────────────────────────────────
-  ...tableStyles,
-};
-
 
 export default HistoryPage;

@@ -28,7 +28,8 @@ import { getTickerPrice } from '../../services/market';
 import { fetchMyWallet } from '../../services/wallet';
 import { fetchMyPortfolio } from '../../services/portfolio';
 import TickerSearch from '../TickerSearch';
-import theme from '../../styles/theme';
+import { useTheme } from '../../context/ThemeContext';
+import { useMobile } from '../../hooks/useBreakpoint';
 
 // ── LockIcon ──────────────────────────────────────────────────────────────────
 // Inline SVG padlock — shown when ticker is pre-set and readonly.
@@ -58,6 +59,8 @@ const TradePanel = ({
   onClose
 }) => {
 
+  const theme    = useTheme();
+  const isMobile = useMobile();
   const [operation,       setOperation]       = useState(initialOperation);
   const [activeTicker,    setActiveTicker]    = useState(initialTicker || null);
   const [quantity,        setQuantity]        = useState(1);
@@ -152,7 +155,281 @@ const TradePanel = ({
       currency:              'USD',
       minimumFractionDigits: 2,
     }).format(value);
+  
+  // ── Styles ──────────────────────────────────────────────────────────────────
 
+  const styles = {
+    backdrop: {
+      position:        'fixed',
+      inset:           0,
+      backgroundColor: theme.colors.overlay,
+      zIndex:          150,
+    },
+
+    // Mobile: panel covers full width. Desktop: fixed 380px.
+    panel: {
+      position:        'fixed',
+      top:             0,
+      right:           0,
+      bottom:          0,
+      width:           isMobile ? '100%' : theme.layout.panelWidth,
+      backgroundColor: theme.colors.surface,
+      boxShadow:       theme.shadow.lg,
+      zIndex:          151,
+      display:         'flex',
+      flexDirection:   'column',
+      overflow:        'hidden',
+    },
+
+    header: {
+      display:        'flex',
+      alignItems:     'center',
+      justifyContent: 'space-between',
+      padding:        `${theme.spacing[4]} ${theme.spacing[6]}`,
+      borderBottom:   `1px solid ${theme.colors.border}`,
+    },
+
+    title: {
+      fontSize:   theme.font.size.lg,
+      fontWeight: theme.font.weight.bold,
+      color:      theme.colors.textPrimary,
+    },
+
+    closeBtn: {
+      fontSize:   theme.font.size.md,
+      color:      theme.colors.textMuted,
+      background: 'none',
+      border:     'none',
+      cursor:     'pointer',
+      padding:    theme.spacing[1],
+      lineHeight: 1,
+    },
+
+    body: {
+      flex:          1,
+      overflowY:     'auto',
+      padding:       theme.spacing[6],
+      display:       'flex',
+      flexDirection: 'column',
+      gap:           theme.spacing[5],
+    },
+
+    field: {
+      display:       'flex',
+      flexDirection: 'column',
+      gap:           theme.spacing[2],
+    },
+
+    label: {
+      fontSize:      theme.font.size.xs,
+      fontWeight:    theme.font.weight.semibold,
+      color:         theme.colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: '0.05em',
+    },
+
+    // Operation dropdown
+    select: {
+      height:          theme.ui.inputHeight,
+      padding:         `0 ${theme.spacing[3]}`,
+      fontSize:        theme.font.size.sm,
+      fontWeight:      theme.font.weight.medium,
+      color:           theme.colors.textPrimary,
+      backgroundColor: theme.colors.surface,
+      borderWidth:     '1px',
+      borderStyle:     'solid',
+      borderColor:     theme.colors.border,
+      borderRadius:    theme.radius.md,
+      cursor:          'pointer',
+      outline:         'none',
+      fontFamily:      theme.font.family,
+    },
+
+    readonlyTicker: {
+      height:          theme.ui.inputHeight,
+      padding:         `0 ${theme.spacing[3]}`,
+      display:         'flex',
+      alignItems:      'center',
+      fontSize:        theme.font.size.md,
+      fontWeight:      theme.font.weight.bold,
+      color:           theme.colors.textPrimary,
+      backgroundColor: theme.colors.surfaceAlt,
+      borderWidth:     '1px',
+      borderStyle:     'solid',
+      borderColor:     theme.colors.border,
+      borderRadius:    theme.radius.md,
+    },
+
+    readonlyHint: {
+      fontSize:   theme.font.size.xs,
+      color:      theme.colors.textMuted,
+      fontWeight: theme.font.weight.normal,
+      marginLeft: theme.spacing[2],
+    },
+
+    readonlyValue: {
+      height:          theme.ui.inputHeight,
+      padding:         `0 ${theme.spacing[3]}`,
+      display:         'flex',
+      alignItems:      'center',
+      fontSize:        theme.font.size.sm,
+      color:           theme.colors.textSecondary,
+      backgroundColor: theme.colors.surfaceAlt,
+      borderWidth:     '1px',
+      borderStyle:     'solid',
+      borderColor:     theme.colors.border,
+      borderRadius:    theme.radius.md,
+    },
+
+    helperText: {
+      fontSize: theme.font.size.xs,
+      color:    theme.colors.textMuted,
+    },
+
+    quantityRow: {
+      display: 'flex',
+      gap:     theme.spacing[2],
+    },
+
+    qtyBtn: {
+      width:           '38px',
+      height:          theme.ui.inputHeight,
+      fontSize:        theme.font.size.lg,
+      fontWeight:      theme.font.weight.medium,
+      color:           theme.colors.textPrimary,
+      backgroundColor: theme.colors.surfaceAlt,
+      borderWidth:     '1px',
+      borderStyle:     'solid',
+      borderColor:     theme.colors.border,
+      borderRadius:    theme.radius.md,
+      cursor:          'pointer',
+      display:         'flex',
+      alignItems:      'center',
+      justifyContent:  'center',
+      userSelect:      'none',
+    },
+
+    qtyInput: {
+      flex:            1,
+      height:          theme.ui.inputHeight,
+      textAlign:       'center',
+      fontSize:        theme.font.size.md,
+      fontWeight:      theme.font.weight.semibold,
+      color:           theme.colors.textPrimary,
+      backgroundColor: theme.colors.surface,
+      borderWidth:     '1px',
+      borderStyle:     'solid',
+      borderColor:     theme.colors.border,
+      borderRadius:    theme.radius.md,
+      outline:         'none',
+      fontFamily:      theme.font.family,
+    },
+
+    infoCard: {
+      backgroundColor: theme.colors.surfaceAlt,
+      borderRadius:    theme.radius.md,
+      border:          `1px solid ${theme.colors.border}`,
+      padding:         theme.spacing[4],
+      display:         'flex',
+      flexDirection:   'column',
+      gap:             theme.spacing[3],
+    },
+
+    infoLoading: {
+      fontSize: theme.font.size.sm,
+      color:    theme.colors.textMuted,
+      margin:   0,
+    },
+
+    infoError: {
+      fontSize: theme.font.size.sm,
+      color:    theme.colors.danger,
+      margin:   0,
+    },
+
+    infoRow: {
+      display:        'flex',
+      justifyContent: 'space-between',
+      alignItems:     'center',
+    },
+
+    infoLabel: {
+      fontSize: theme.font.size.sm,
+      color:    theme.colors.textSecondary,
+    },
+
+    infoValue: {
+      fontSize:   theme.font.size.sm,
+      fontWeight: theme.font.weight.medium,
+      color:      theme.colors.textPrimary,
+    },
+
+    infoDivider: {
+      height:          '1px',
+      backgroundColor: theme.colors.border,
+    },
+
+    warning: {
+      fontSize: theme.font.size.xs,
+      color:    theme.colors.danger,
+      margin:   0,
+    },
+
+    footer: {
+      padding:       `${theme.spacing[4]} ${theme.spacing[6]}`,
+      borderTop:     `1px solid ${theme.colors.border}`,
+      display:       'flex',
+      flexDirection: 'column',
+      gap:           theme.spacing[2],
+    },
+
+    // Review Order — neutral accent, no green/red
+    reviewBtn: {
+      height:          '44px',
+      fontSize:        theme.font.size.md,
+      fontWeight:      theme.font.weight.semibold,
+      color:           theme.colors.white,
+      backgroundColor: theme.colors.accent,
+      borderWidth:     '1px',
+      borderStyle:     'solid',
+      borderColor:     theme.colors.accent,
+      borderRadius:    theme.radius.md,
+      cursor:          'pointer',
+      fontFamily:      theme.font.family,
+      transition:      `background-color ${theme.transition.fast}`,
+    },
+
+    reviewBtnHover: {
+      backgroundColor: theme.colors.accentHover ?? theme.colors.accent,
+      borderColor:     theme.colors.accentHover ?? theme.colors.accent,
+    },
+
+    reviewBtnDisabled: {
+      backgroundColor: theme.colors.border,
+      borderColor:     theme.colors.border,
+      color:           theme.colors.textMuted,
+      cursor:          'not-allowed',
+    },
+
+    cancelBtn: {
+      height:          '44px',
+      fontSize:        theme.font.size.md,
+      fontWeight:      theme.font.weight.medium,
+      color:           theme.colors.textSecondary,
+      backgroundColor: 'transparent',
+      borderWidth:     '1px',
+      borderStyle:     'solid',
+      borderColor:     theme.colors.border,
+      borderRadius:    theme.radius.md,
+      cursor:          'pointer',
+      fontFamily:      theme.font.family,
+    },
+
+    cancelBtnHover: {
+      backgroundColor: theme.colors.surfaceAlt,
+    },
+  };
+  
   return (
     <>
       <div style={styles.backdrop} onClick={onClose} />
@@ -372,280 +649,6 @@ const TradePanel = ({
       </div>
     </>
   );
-};
-
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const styles = {
-  backdrop: {
-    position:        'fixed',
-    inset:           0,
-    backgroundColor: theme.colors.overlay,
-    zIndex:          150,
-  },
-
-  panel: {
-    position:        'fixed',
-    top:             0,
-    right:           0,
-    bottom:          0,
-    width:           theme.layout.panelWidth,
-    backgroundColor: theme.colors.surface,
-    boxShadow:       theme.shadow.lg,
-    zIndex:          151,
-    display:         'flex',
-    flexDirection:   'column',
-    overflow:        'hidden',
-  },
-
-  header: {
-    display:        'flex',
-    alignItems:     'center',
-    justifyContent: 'space-between',
-    padding:        `${theme.spacing[4]} ${theme.spacing[6]}`,
-    borderBottom:   `1px solid ${theme.colors.border}`,
-  },
-
-  title: {
-    fontSize:   theme.font.size.lg,
-    fontWeight: theme.font.weight.bold,
-    color:      theme.colors.textPrimary,
-  },
-
-  closeBtn: {
-    fontSize:   theme.font.size.md,
-    color:      theme.colors.textMuted,
-    background: 'none',
-    border:     'none',
-    cursor:     'pointer',
-    padding:    theme.spacing[1],
-    lineHeight: 1,
-  },
-
-  body: {
-    flex:          1,
-    overflowY:     'auto',
-    padding:       theme.spacing[6],
-    display:       'flex',
-    flexDirection: 'column',
-    gap:           theme.spacing[5],
-  },
-
-  field: {
-    display:       'flex',
-    flexDirection: 'column',
-    gap:           theme.spacing[2],
-  },
-
-  label: {
-    fontSize:      theme.font.size.xs,
-    fontWeight:    theme.font.weight.semibold,
-    color:         theme.colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-  },
-
-  // Operation dropdown
-  select: {
-    height:          theme.ui.inputHeight,
-    padding:         `0 ${theme.spacing[3]}`,
-    fontSize:        theme.font.size.sm,
-    fontWeight:      theme.font.weight.medium,
-    color:           theme.colors.textPrimary,
-    backgroundColor: theme.colors.surface,
-    borderWidth:     '1px',
-    borderStyle:     'solid',
-    borderColor:     theme.colors.border,
-    borderRadius:    theme.radius.md,
-    cursor:          'pointer',
-    outline:         'none',
-    fontFamily:      theme.font.family,
-  },
-
-  readonlyTicker: {
-    height:          theme.ui.inputHeight,
-    padding:         `0 ${theme.spacing[3]}`,
-    display:         'flex',
-    alignItems:      'center',
-    fontSize:        theme.font.size.md,
-    fontWeight:      theme.font.weight.bold,
-    color:           theme.colors.textPrimary,
-    backgroundColor: theme.colors.surfaceAlt,
-    borderWidth:     '1px',
-    borderStyle:     'solid',
-    borderColor:     theme.colors.border,
-    borderRadius:    theme.radius.md,
-  },
-
-  readonlyHint: {
-    fontSize:   theme.font.size.xs,
-    color:      theme.colors.textMuted,
-    fontWeight: theme.font.weight.normal,
-    marginLeft: theme.spacing[2],
-  },
-
-  readonlyValue: {
-    height:          theme.ui.inputHeight,
-    padding:         `0 ${theme.spacing[3]}`,
-    display:         'flex',
-    alignItems:      'center',
-    fontSize:        theme.font.size.sm,
-    color:           theme.colors.textSecondary,
-    backgroundColor: theme.colors.surfaceAlt,
-    borderWidth:     '1px',
-    borderStyle:     'solid',
-    borderColor:     theme.colors.border,
-    borderRadius:    theme.radius.md,
-  },
-
-  helperText: {
-    fontSize: theme.font.size.xs,
-    color:    theme.colors.textMuted,
-  },
-
-  quantityRow: {
-    display: 'flex',
-    gap:     theme.spacing[2],
-  },
-
-  qtyBtn: {
-    width:           '38px',
-    height:          theme.ui.inputHeight,
-    fontSize:        theme.font.size.lg,
-    fontWeight:      theme.font.weight.medium,
-    color:           theme.colors.textPrimary,
-    backgroundColor: theme.colors.surfaceAlt,
-    borderWidth:     '1px',
-    borderStyle:     'solid',
-    borderColor:     theme.colors.border,
-    borderRadius:    theme.radius.md,
-    cursor:          'pointer',
-    display:         'flex',
-    alignItems:      'center',
-    justifyContent:  'center',
-    userSelect:      'none',
-  },
-
-  qtyInput: {
-    flex:            1,
-    height:          theme.ui.inputHeight,
-    textAlign:       'center',
-    fontSize:        theme.font.size.md,
-    fontWeight:      theme.font.weight.semibold,
-    color:           theme.colors.textPrimary,
-    backgroundColor: theme.colors.surface,
-    borderWidth:     '1px',
-    borderStyle:     'solid',
-    borderColor:     theme.colors.border,
-    borderRadius:    theme.radius.md,
-    outline:         'none',
-    fontFamily:      theme.font.family,
-  },
-
-  infoCard: {
-    backgroundColor: theme.colors.surfaceAlt,
-    borderRadius:    theme.radius.md,
-    border:          `1px solid ${theme.colors.border}`,
-    padding:         theme.spacing[4],
-    display:         'flex',
-    flexDirection:   'column',
-    gap:             theme.spacing[3],
-  },
-
-  infoLoading: {
-    fontSize: theme.font.size.sm,
-    color:    theme.colors.textMuted,
-    margin:   0,
-  },
-
-  infoError: {
-    fontSize: theme.font.size.sm,
-    color:    theme.colors.danger,
-    margin:   0,
-  },
-
-  infoRow: {
-    display:        'flex',
-    justifyContent: 'space-between',
-    alignItems:     'center',
-  },
-
-  infoLabel: {
-    fontSize: theme.font.size.sm,
-    color:    theme.colors.textSecondary,
-  },
-
-  infoValue: {
-    fontSize:   theme.font.size.sm,
-    fontWeight: theme.font.weight.medium,
-    color:      theme.colors.textPrimary,
-  },
-
-  infoDivider: {
-    height:          '1px',
-    backgroundColor: theme.colors.border,
-  },
-
-  warning: {
-    fontSize: theme.font.size.xs,
-    color:    theme.colors.danger,
-    margin:   0,
-  },
-
-  footer: {
-    padding:       `${theme.spacing[4]} ${theme.spacing[6]}`,
-    borderTop:     `1px solid ${theme.colors.border}`,
-    display:       'flex',
-    flexDirection: 'column',
-    gap:           theme.spacing[2],
-  },
-
-  // Review Order — neutral accent, no green/red
-  reviewBtn: {
-    height:          '44px',
-    fontSize:        theme.font.size.md,
-    fontWeight:      theme.font.weight.semibold,
-    color:           theme.colors.white,
-    backgroundColor: theme.colors.accent,
-    borderWidth:     '1px',
-    borderStyle:     'solid',
-    borderColor:     theme.colors.accent,
-    borderRadius:    theme.radius.md,
-    cursor:          'pointer',
-    fontFamily:      theme.font.family,
-    transition:      `background-color ${theme.transition.fast}`,
-  },
-
-  reviewBtnHover: {
-    backgroundColor: theme.colors.accentHover ?? theme.colors.accent,
-    borderColor:     theme.colors.accentHover ?? theme.colors.accent,
-  },
-
-  reviewBtnDisabled: {
-    backgroundColor: theme.colors.border,
-    borderColor:     theme.colors.border,
-    color:           theme.colors.textMuted,
-    cursor:          'not-allowed',
-  },
-
-  cancelBtn: {
-    height:          '44px',
-    fontSize:        theme.font.size.md,
-    fontWeight:      theme.font.weight.medium,
-    color:           theme.colors.textSecondary,
-    backgroundColor: 'transparent',
-    borderWidth:     '1px',
-    borderStyle:     'solid',
-    borderColor:     theme.colors.border,
-    borderRadius:    theme.radius.md,
-    cursor:          'pointer',
-    fontFamily:      theme.font.family,
-  },
-
-  cancelBtnHover: {
-    backgroundColor: theme.colors.surfaceAlt,
-  },
 };
 
 export default TradePanel;

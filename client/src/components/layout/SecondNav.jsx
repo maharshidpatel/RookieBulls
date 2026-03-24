@@ -12,6 +12,11 @@
  *               Buy and Sell disabled when market is closed.
  *               Get a Quote has magnifying glass icon prefix.
  *
+ * Mobile layout (< 768px):
+ *   Two rows — nav pills row on top, action buttons row below.
+ *   Pills row scrolls horizontally if needed.
+ *   Action buttons fill equal width. "Get a Quote" label shortened to "Quote".
+ *
  * Props:
  *   onBuyClick   — opens Buy panel in Layout
  *   onSellClick  — opens Sell panel in Layout
@@ -22,7 +27,8 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { getMarketStatus } from '../../services/market';
-import theme from '../../styles/theme';
+import { useTheme } from '../../context/ThemeContext';
+import { useMobile } from '../../hooks/useBreakpoint';
 
 // ── SearchIcon ────────────────────────────────────────────────────────────────
 // Inline SVG magnifying glass — used in Get a Quote button.
@@ -46,6 +52,8 @@ const SearchIcon = () => (
 const SecondNav = ({ onBuyClick, onSellClick, onQuoteClick }) => {
   const location = useLocation();
   const navigate  = useNavigate();
+  const theme     = useTheme();
+  const isMobile  = useMobile();
 
   const [marketStatus, setMarketStatus] = useState(null);
   const [statusError,  setStatusError]  = useState(false);
@@ -98,10 +106,172 @@ const SecondNav = ({ onBuyClick, onSellClick, onQuoteClick }) => {
     { label: 'History',  path: '/history',  activePrefix: '/history',  isQuote: false },
   ];
 
+  // ── Styles ──────────────────────────────────────────────────────────────────
+  //
+  // Defined inside the component body so they read the current theme
+  // from useTheme() and respond to isMobile for layout changes.
+  //
+  const styles = {
+    nav: {
+      position:        'fixed',
+      top:             theme.layout.topNavHeight,
+      left:            0,
+      right:           0,
+      height:          isMobile ? 'auto' : theme.layout.secondNavHeight,
+      backgroundColor: theme.colors.surface,
+      borderBottom:    `1px solid ${theme.colors.border}`,
+      display:         'flex',
+      flexDirection:   isMobile ? 'column' : 'row',
+      alignItems:      isMobile ? 'stretch' : 'center',
+      justifyContent:  isMobile ? undefined : 'space-between',
+      padding:         isMobile ? 0 : `0 ${theme.spacing[6]}`,
+      zIndex:          99,
+    },
+
+    // Row 1 on mobile: nav pills + market status. Scrolls horizontally if needed.
+    left: {
+      display:       'flex',
+      alignItems:    'center',
+      gap:           theme.spacing[1],
+      padding:       isMobile ? `0 ${theme.spacing[3]} ${theme.spacing[2]}` : undefined,
+      overflowX:     isMobile ? 'auto' : undefined,
+      minHeight:     isMobile ? '48px' : undefined,
+    },
+
+    // Row 2 on mobile: Buy / Sell / Quote action buttons.
+    right: {
+      display:     'flex',
+      alignItems:  'center',
+      gap:         theme.spacing[2],
+      padding:     isMobile ? `${theme.spacing[2]} ${theme.spacing[3]} ${theme.spacing[3]}` : undefined,
+      borderTop:   isMobile ? `1px solid ${theme.colors.border}` : undefined,
+    },
+
+    navPill: {
+      fontSize:        theme.font.size.sm,
+      fontWeight:      theme.font.weight.medium,
+      color:           theme.colors.textSecondary,
+      textDecoration:  'none',
+      borderWidth:     '1px',
+      borderStyle:     'solid',
+      borderColor:     theme.colors.border,
+      borderRadius:    theme.radius.full,
+      padding:         `4px ${theme.spacing[3]}`,
+      cursor:          'pointer',
+      transition:      `color ${theme.transition.fast}, background-color ${theme.transition.fast}, border-color ${theme.transition.fast}`,
+      userSelect:      'none',
+      display:         'inline-block',
+      whiteSpace:      'nowrap',
+    },
+
+    navPillHover: {
+      color:           theme.colors.accent,
+      backgroundColor: theme.colors.accentTint,
+      borderColor:     theme.colors.accent,
+    },
+
+    navPillActive: {
+      color:           theme.colors.white,
+      backgroundColor: theme.colors.accent,
+      borderColor:     theme.colors.accent,
+      fontWeight:      theme.font.weight.semibold,
+    },
+
+    statusOpen: {
+      fontSize:        theme.font.size.xs,
+      fontWeight:      theme.font.weight.semibold,
+      color:           theme.colors.statusOpenText,
+      backgroundColor: theme.colors.statusOpenBg,
+      padding:         `3px ${theme.spacing[2]}`,
+      borderRadius:    theme.radius.full,
+      border:          `1px solid ${theme.colors.statusOpenBorder}`,
+      marginLeft:      theme.spacing[2],
+      whiteSpace:      'nowrap',
+      userSelect:      'none',
+    },
+
+    statusClosed: {
+      fontSize:        theme.font.size.xs,
+      fontWeight:      theme.font.weight.semibold,
+      color:           theme.colors.statusClosedText,
+      backgroundColor: theme.colors.statusClosedBg,
+      padding:         `3px ${theme.spacing[2]}`,
+      borderRadius:    theme.radius.full,
+      border:          `1px solid ${theme.colors.statusClosedBorder}`,
+      marginLeft:      theme.spacing[2],
+      whiteSpace:      'nowrap',
+      userSelect:      'none',
+    },
+
+    statusUnknown: {
+      fontSize:        theme.font.size.xs,
+      color:           theme.colors.textMuted,
+      backgroundColor: theme.colors.surfaceAlt,
+      padding:         `3px ${theme.spacing[2]}`,
+      borderRadius:    theme.radius.full,
+      border:          `1px solid ${theme.colors.border}`,
+      marginLeft:      theme.spacing[2],
+      whiteSpace:      'nowrap',
+      userSelect:      'none',
+    },
+
+    // Base action button — mobile gets flex:1 and taller touch target
+    actionBtn: {
+      height:       isMobile ? '36px' : theme.ui.actionPillHeight,
+      flex:         isMobile ? 1 : undefined,
+      padding:      `0 ${theme.spacing[3]}`,
+      fontSize:     theme.font.size.sm,
+      fontWeight:   theme.font.weight.semibold,
+      borderRadius: isMobile ? theme.radius.md : theme.radius.full,
+      borderWidth:  '1px',
+      borderStyle:  'solid',
+      cursor:       'pointer',
+      transition:   `color ${theme.transition.fast}, background-color ${theme.transition.fast}, border-color ${theme.transition.fast}`,
+      userSelect:   'none',
+    },
+
+    buyBtn: {
+      color:           theme.colors.white,
+      borderColor:     theme.colors.success,
+      backgroundColor: theme.colors.success,
+    },
+    buyBtnHover: {
+      color:           theme.colors.successHover,
+      borderColor:     theme.colors.successHover,
+      backgroundColor: theme.colors.successTint,
+    },
+    sellBtn: {
+      color:           theme.colors.white,
+      borderColor:     theme.colors.danger,
+      backgroundColor: theme.colors.danger,
+    },
+    sellBtnHover: {
+      color:           theme.colors.dangerHover,
+      borderColor:     theme.colors.dangerHover,
+      backgroundColor: theme.colors.dangerTint,
+    },
+    quoteBtn: {
+      color:           theme.colors.white,
+      borderColor:     theme.colors.info,
+      backgroundColor: theme.colors.info,
+    },
+    quoteBtnHover: {
+      color:           theme.colors.infoHover,
+      borderColor:     theme.colors.infoHover,
+      backgroundColor: theme.colors.infoTint,
+    },
+    disabledBtn: {
+      color:           theme.colors.textMuted,
+      borderColor:     theme.colors.border,
+      backgroundColor: theme.colors.border,
+      cursor:          'not-allowed',
+    },
+  };
+
   return (
     <nav style={styles.nav}>
 
-      {/* ── Left: page nav pills + market status ──────────────────────────── */}
+      {/* ── Left: page nav pills + market status (Row 1 on mobile) ─────── */}
       <div style={styles.left}>
 
         {pageLinks.map(({ label, path, activePrefix, isQuote }) => {
@@ -163,7 +333,7 @@ const SecondNav = ({ onBuyClick, onSellClick, onQuoteClick }) => {
 
       </div>
 
-      {/* ── Right: action buttons ──────────────────────────────────────────── */}
+      {/* ── Right: action buttons (Row 2 on mobile) ────────────────────── */}
       <div style={styles.right}>
 
         <button
@@ -206,151 +376,13 @@ const SecondNav = ({ onBuyClick, onSellClick, onQuoteClick }) => {
           onMouseLeave={() => setHovered(h => ({ ...h, quote: false }))}
         >
           <SearchIcon />
-          Get a Quote
+          {isMobile ? 'Quote' : 'Get a Quote'}
         </button>
 
       </div>
 
     </nav>
   );
-};
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const styles = {
-  nav: {
-    position:        'fixed',
-    top:             theme.layout.topNavHeight,
-    left:            0,
-    right:           0,
-    height:          theme.layout.secondNavHeight,
-    backgroundColor: theme.colors.surface,
-    borderBottom:    `1px solid ${theme.colors.border}`,
-    display:         'flex',
-    alignItems:      'center',
-    justifyContent:  'space-between',
-    padding:         `0 ${theme.spacing[6]}`,
-    zIndex:          99,
-  },
-  left: {
-    display:    'flex',
-    alignItems: 'center',
-    gap:        theme.spacing[1],
-  },
-  right: {
-    display:    'flex',
-    alignItems: 'center',
-    gap:        theme.spacing[2],
-  },
-  navPill: {
-    fontSize:        theme.font.size.sm,
-    fontWeight:      theme.font.weight.medium,
-    color:           theme.colors.textSecondary,
-    textDecoration:  'none',
-    borderWidth:     '1px',
-    borderStyle:     'solid',
-    borderColor:     theme.colors.border,
-    borderRadius:    theme.radius.full,
-    padding:         `4px ${theme.spacing[3]}`,
-    cursor:          'pointer',
-    transition:      `color ${theme.transition.fast}, background-color ${theme.transition.fast}, border-color ${theme.transition.fast}`,
-    userSelect:      'none',
-    display:         'inline-block',
-  },
-  navPillHover: {
-    color:           theme.colors.accent,
-    backgroundColor: theme.colors.accentTint,
-    borderColor:     theme.colors.accent,
-  },
-  navPillActive: {
-    color:           theme.colors.white,
-    backgroundColor: theme.colors.accent,
-    borderColor:     theme.colors.accent,
-    fontWeight:      theme.font.weight.semibold,
-  },
-  statusOpen: {
-    fontSize:        theme.font.size.xs,
-    fontWeight:      theme.font.weight.semibold,
-    color:           theme.colors.statusOpenText,
-    backgroundColor: theme.colors.statusOpenBg,
-    padding:         `3px ${theme.spacing[2]}`,
-    borderRadius:    theme.radius.full,
-    border:          `1px solid ${theme.colors.statusOpenBorder}`,
-    marginLeft:      theme.spacing[2],
-    whiteSpace:      'nowrap',
-    userSelect:      'none',
-  },
-  statusClosed: {
-    fontSize:        theme.font.size.xs,
-    fontWeight:      theme.font.weight.semibold,
-    color:           theme.colors.statusClosedText,
-    backgroundColor: theme.colors.statusClosedBg,
-    padding:         `3px ${theme.spacing[2]}`,
-    borderRadius:    theme.radius.full,
-    border:          `1px solid ${theme.colors.statusClosedBorder}`,
-    marginLeft:      theme.spacing[2],
-    whiteSpace:      'nowrap',
-    userSelect:      'none',
-  },
-  statusUnknown: {
-    fontSize:        theme.font.size.xs,
-    color:           theme.colors.textMuted,
-    backgroundColor: theme.colors.surfaceAlt,
-    padding:         `3px ${theme.spacing[2]}`,
-    borderRadius:    theme.radius.full,
-    border:          `1px solid ${theme.colors.border}`,
-    marginLeft:      theme.spacing[2],
-    whiteSpace:      'nowrap',
-    userSelect:      'none',
-  },
-  actionBtn: {
-    height:       theme.ui.actionPillHeight,
-    padding:      `0 ${theme.spacing[3]}`,
-    fontSize:     theme.font.size.sm,
-    fontWeight:   theme.font.weight.semibold,
-    borderRadius: theme.radius.full,
-    borderWidth:  '1px',
-    borderStyle:  'solid',
-    cursor:       'pointer',
-    transition:   `color ${theme.transition.fast}, background-color ${theme.transition.fast}, border-color ${theme.transition.fast}`,
-    userSelect:   'none',
-  },
-  buyBtn: {
-    color:           theme.colors.white,
-    borderColor:     theme.colors.success,
-    backgroundColor: theme.colors.success,
-  },
-  buyBtnHover: {
-    color:           theme.colors.successHover,
-    borderColor:     theme.colors.successHover,
-    backgroundColor: theme.colors.successTint,
-  },
-  sellBtn: {
-    color:           theme.colors.white,
-    borderColor:     theme.colors.danger,
-    backgroundColor: theme.colors.danger,
-  },
-  sellBtnHover: {
-    color:           theme.colors.dangerHover,
-    borderColor:     theme.colors.dangerHover,
-    backgroundColor: theme.colors.dangerTint,
-  },
-  quoteBtn: {
-    color:           theme.colors.white,
-    borderColor:     theme.colors.info,
-    backgroundColor: theme.colors.info,
-  },
-  quoteBtnHover: {
-    color:           theme.colors.infoHover,
-    borderColor:     theme.colors.infoHover,
-    backgroundColor: theme.colors.infoTint,
-  },
-  disabledBtn: {
-    color:           theme.colors.textMuted,
-    borderColor:     theme.colors.border,
-    backgroundColor: theme.colors.border,
-    cursor:          'not-allowed',
-  },
 };
 
 export default SecondNav;

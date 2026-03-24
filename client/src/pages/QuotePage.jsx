@@ -31,7 +31,8 @@ import {
   ResponsiveContainer, CartesianGrid,
 } from 'recharts';
 import { getFullQuote, getStockProfile, getCandles } from '../services/market';
-import theme from '../styles/theme';
+import { useTheme } from '../context/ThemeContext';
+import { useMobile } from '../hooks/useBreakpoint';
 
 // Range definitions — calendarDays used to slice the full history dataset.
 // null = no filter, show entire dataset (All range).
@@ -135,12 +136,13 @@ const xAxisConfig = {
 // Each candle: wick (high-low line) + body (open-close rect).
 // Hover shows OHLC tooltip. Current price shown as dashed reference line.
 const OhlcChart = ({ candles, width = 600, height = 280 }) => {
+  const theme    = useTheme();
+  const isMobile = useMobile();
   const [hoveredIdx, setHoveredIdx] = useState(null);
 
   if (!candles || candles.length === 0) return null;
 
-  const margin = { top: 10, right: 40, bottom: 32, left: 64 };
-  const chartW  = Math.max(width - margin.left - margin.right, 1);
+  const margin = { top: 10, right: 40, bottom: isMobile ? 28 : 32, left: isMobile ? 48 : 64 };  const chartW  = Math.max(width - margin.left - margin.right, 1);
   const chartH  = height - margin.top - margin.bottom;
 
   // Price domain — 12% padding above and below
@@ -246,18 +248,20 @@ const OhlcChart = ({ candles, width = 600, height = 280 }) => {
               fill={color}
               opacity={hoveredIdx === i ? 1 : 0.85}
             />
-            {/* X axis label */}
-            <text
-              x={cx}
-              y={height - margin.bottom + 18}
-              textAnchor="middle"
-              fontSize={11}
-              fill={hoveredIdx === i
-                ? theme.colors.textPrimary
-                : theme.colors.textMuted}
-            >
-              {label}
-            </text>
+            {/* X axis label — hidden on mobile unless this candle is hovered */}
+            {(!isMobile || hoveredIdx === i) && (
+              <text
+                x={cx}
+                y={height - margin.bottom + 18}
+                textAnchor="middle"
+                fontSize={11}
+                fill={hoveredIdx === i
+                  ? theme.colors.textPrimary
+                  : theme.colors.textMuted}
+              >
+                {label}
+              </text>
+            )}
           </g>
         );
       })}
@@ -329,7 +333,33 @@ const OhlcChart = ({ candles, width = 600, height = 280 }) => {
   );
 };
 
+// ── OhlcChartWrapper — measures container width for responsive sizing ──────
+//
+// ResponsiveContainer from recharts does not reliably pass width to
+// custom SVG components. This wrapper uses a ref to measure the
+// available width and passes it as a prop to OhlcChart.
+const OhlcChartWrapper = ({ candles }) => {
+  const containerRef = useRef(null);
+  const [width, setWidth] = useState(0);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const measure = () => setWidth(containerRef.current.offsetWidth);
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+
+  return (
+    <div ref={containerRef} style={{ width: '100%' }}>
+      {width > 0 && <OhlcChart candles={candles} width={width} height={280} />}
+    </div>
+  );
+};
+
 const QuotePage = () => {
+  const theme    = useTheme();
+  const isMobile = useMobile();
   const { ticker } = useParams();
   const { openBuyPanel, openSellPanel, refreshKey } = useOutletContext();
 
@@ -496,6 +526,221 @@ const QuotePage = () => {
     );
   };
 
+  // ── Styles ──────────────────────────────────────────────────────────────────
+
+  const styles = {
+    page: {
+      display: 'flex', flexDirection: 'column', gap: theme.spacing[4],
+    },
+    stateWrapper: {
+      display: 'flex', justifyContent: 'center', paddingTop: theme.spacing[12],
+    },
+    stateText: {
+      fontSize: theme.font.size.sm, color: theme.colors.textMuted,
+    },
+    errorBox: {
+      backgroundColor: theme.colors.dangerTint,
+      border:          `1px solid ${theme.colors.danger}`,
+      borderRadius:    theme.radius.md,
+      padding:         `${theme.spacing[3]} ${theme.spacing[4]}`,
+      fontSize:        theme.font.size.sm,
+      color:           theme.colors.danger,
+    },
+    headerCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius:    theme.radius.lg,
+      border:          `1px solid ${theme.colors.border}`,
+      padding:         theme.spacing[6],
+      display:         'flex',
+      flexDirection:   isMobile ? 'column' : 'row',
+      justifyContent:  'space-between',
+      alignItems:      'flex-start',
+      gap:             isMobile ? theme.spacing[4] : theme.spacing[6],
+    },
+    headerLeft: {
+      display: 'flex', flexDirection: 'column', gap: theme.spacing[2],
+    },
+    companyRow: {
+      display: 'flex', alignItems: 'baseline', gap: theme.spacing[3],
+    },
+    tickerLabel: {
+      fontSize:   theme.font.size['2xl'],
+      fontWeight: theme.font.weight.bold,
+      color:      theme.colors.textPrimary,
+    },
+    companyName: {
+      fontSize:   theme.font.size.lg,
+      fontWeight: theme.font.weight.medium,
+      color:      theme.colors.textSecondary,
+    },
+    metaRow: {
+      display:  'flex',
+      gap:      theme.spacing[2],
+      flexWrap: 'wrap',
+    },
+    metaPill: {
+      fontSize:        theme.font.size.xs,
+      fontWeight:      theme.font.weight.medium,
+      color:           theme.colors.textSecondary,
+      backgroundColor: theme.colors.surfaceAlt,
+      borderWidth:     '1px',
+      borderStyle:     'solid',
+      borderColor:     theme.colors.border,
+      borderRadius:    theme.radius.full,
+      padding:         `${theme.spacing[1]} ${theme.spacing[3]}`,
+    },
+    priceBlock: {
+      display:    'flex',
+      alignItems: 'baseline',
+      gap:        theme.spacing[2],
+      marginTop:  theme.spacing[2],
+      flexWrap:   isMobile ? 'wrap' : 'nowrap',
+    },
+    price: {
+      fontSize:   theme.font.size['3xl'],
+      fontWeight: theme.font.weight.bold,
+      color:      theme.colors.textPrimary,
+    },
+    change: {
+      fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold,
+    },
+    changePct: {
+      fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold,
+    },
+    delayedLabel: {
+      fontSize:        theme.font.size.xs,
+      color:           theme.colors.textMuted,
+      backgroundColor: theme.colors.surfaceAlt,
+      borderWidth:     '1px',
+      borderStyle:     'solid',
+      borderColor:     theme.colors.border,
+      borderRadius:    theme.radius.sm,
+      padding:         `${theme.spacing[1]} ${theme.spacing[2]}`,
+      alignSelf:       'center',
+    },
+    headerRight: {
+      display:    'flex',
+      gap:        theme.spacing[2],
+      flexShrink: 0,
+      width:      isMobile ? '100%' : undefined,
+    },
+    tradeBtn: {
+      height:       '38px',
+      flex:         isMobile ? 1 : undefined,
+      padding:      `0 ${theme.spacing[5]}`,
+      fontSize:     theme.font.size.sm,
+      fontWeight:   theme.font.weight.semibold,
+      borderRadius: theme.radius.md,
+      borderWidth:  '1px',
+      borderStyle:  'solid',
+      cursor:       'pointer',
+      fontFamily:   theme.font.family,
+      transition:   `background-color ${theme.transition.fast}, color ${theme.transition.fast}`,
+    },
+    buyBtn: {
+      color: theme.colors.white, backgroundColor: theme.colors.success, borderColor: theme.colors.success,
+    },
+    buyBtnHover: {
+      color: theme.colors.success, backgroundColor: theme.colors.successTint, borderColor: theme.colors.success,
+    },
+    sellBtn: {
+      color: theme.colors.white, backgroundColor: theme.colors.danger, borderColor: theme.colors.danger,
+    },
+    sellBtnHover: {
+      color: theme.colors.danger, backgroundColor: theme.colors.dangerTint, borderColor: theme.colors.danger,
+    },
+    statsRow: {
+      display: 'grid',
+      gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+      gap: theme.spacing[3],
+    },
+    statBox: {
+      backgroundColor: theme.colors.surface,
+      borderRadius:    theme.radius.md,
+      border:          `1px solid ${theme.colors.border}`,
+      padding:         theme.spacing[4],
+      display:         'flex',
+      flexDirection:   'column',
+      gap:             theme.spacing[1],
+    },
+    statLabel: {
+      fontSize:      theme.font.size.xs,
+      color:         theme.colors.textMuted,
+      textTransform: 'uppercase',
+      letterSpacing: '0.04em',
+    },
+    statValue: {
+      fontSize:   theme.font.size.md,
+      fontWeight: theme.font.weight.semibold,
+      color:      theme.colors.textPrimary,
+    },
+    chartCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius:    theme.radius.lg,
+      border:          `1px solid ${theme.colors.border}`,
+      padding:         theme.spacing[6],
+      display:         'flex',
+      flexDirection:   'column',
+      gap:             theme.spacing[4],
+    },
+    chartHeader: {
+      display:        'flex',
+      justifyContent: 'space-between',
+      alignItems:     'center',
+      flexWrap:       isMobile ? 'wrap' : 'nowrap',
+      gap:            isMobile ? '12px' : 0,
+    },
+    chartTitle: {
+      fontSize:   theme.font.size.md,
+      fontWeight: theme.font.weight.semibold,
+      color:      theme.colors.textPrimary,
+    },
+    rangeGroup: {
+      display:  'flex',
+      gap:      theme.spacing[1],
+      flexWrap: isMobile ? 'wrap' : 'nowrap',
+    },
+    rangeBtn: {
+      height:          '28px',
+      padding:         `0 ${theme.spacing[3]}`,
+      fontSize:        theme.font.size.xs,
+      fontWeight:      theme.font.weight.medium,
+      color:           theme.colors.textSecondary,
+      backgroundColor: 'transparent',
+      borderWidth:     '1px',
+      borderStyle:     'solid',
+      borderColor:     theme.colors.border,
+      borderRadius:    theme.radius.md,
+      cursor:          'pointer',
+      fontFamily:      theme.font.family,
+    },
+    rangeBtnActive: {
+      color:           theme.colors.accent,
+      backgroundColor: theme.colors.accentTint,
+      borderColor:     theme.colors.accent,
+    },
+    tooltip: {
+      backgroundColor: theme.colors.surface,
+      borderWidth:     '1px',
+      borderStyle:     'solid',
+      borderColor:     theme.colors.border,
+      borderRadius:    theme.radius.md,
+      padding:         `${theme.spacing[2]} ${theme.spacing[3]}`,
+      boxShadow:       theme.shadow.md,
+    },
+    tooltipDate: {
+      fontSize: theme.font.size.xs, color: theme.colors.textMuted,
+      margin: 0, marginBottom: theme.spacing[1],
+    },
+    tooltipClose: {
+      fontSize: theme.font.size.sm, fontWeight: theme.font.weight.semibold,
+      color: theme.colors.textPrimary, margin: 0,
+    },
+    tooltipVol: {
+      fontSize: theme.font.size.xs, color: theme.colors.textSecondary, margin: 0,
+    },
+  };
+
   // ── Loading / Error states ─────────────────────────────────────────────────
 
   if (loading) {
@@ -631,9 +876,7 @@ const QuotePage = () => {
 
           {/* 5D — candlestick chart using full OHLC data */}
           {range === '5D' ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <OhlcChart candles={chartCandles} />
-            </ResponsiveContainer>
+            <OhlcChartWrapper candles={chartCandles} />
           ) : (
             <ResponsiveContainer width="100%" height={280}>
               <AreaChart
@@ -659,8 +902,19 @@ const QuotePage = () => {
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={axisConf.formatter}
-                  interval={axisConf.interval}
-                  minTickGap={axisConf.minTickGap}
+                  {...(isMobile
+                    ? {
+                        ticks: [
+                          chartCandles[0]?.time,
+                          chartCandles[Math.floor(chartCandles.length / 2)]?.time,
+                          chartCandles[chartCandles.length - 1]?.time,
+                        ].filter(Boolean),
+                      }
+                    : {
+                        interval: axisConf.interval,
+                        minTickGap: axisConf.minTickGap,
+                      }
+                  )}
                 />
 
                 <YAxis
@@ -693,202 +947,6 @@ const QuotePage = () => {
 
     </div>
   );
-};
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const styles = {
-  page: {
-    display: 'flex', flexDirection: 'column', gap: theme.spacing[4],
-  },
-  stateWrapper: {
-    display: 'flex', justifyContent: 'center', paddingTop: theme.spacing[12],
-  },
-  stateText: {
-    fontSize: theme.font.size.sm, color: theme.colors.textMuted,
-  },
-  errorBox: {
-    backgroundColor: theme.colors.dangerTint,
-    border:          `1px solid ${theme.colors.danger}`,
-    borderRadius:    theme.radius.md,
-    padding:         `${theme.spacing[3]} ${theme.spacing[4]}`,
-    fontSize:        theme.font.size.sm,
-    color:           theme.colors.danger,
-  },
-  headerCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius:    theme.radius.lg,
-    border:          `1px solid ${theme.colors.border}`,
-    padding:         theme.spacing[6],
-    display:         'flex',
-    justifyContent:  'space-between',
-    alignItems:      'flex-start',
-    gap:             theme.spacing[6],
-  },
-  headerLeft: {
-    display: 'flex', flexDirection: 'column', gap: theme.spacing[2],
-  },
-  companyRow: {
-    display: 'flex', alignItems: 'baseline', gap: theme.spacing[3],
-  },
-  tickerLabel: {
-    fontSize:   theme.font.size['2xl'],
-    fontWeight: theme.font.weight.bold,
-    color:      theme.colors.textPrimary,
-  },
-  companyName: {
-    fontSize:   theme.font.size.lg,
-    fontWeight: theme.font.weight.medium,
-    color:      theme.colors.textSecondary,
-  },
-  metaRow: {
-    display: 'flex', gap: theme.spacing[2],
-  },
-  metaPill: {
-    fontSize:        theme.font.size.xs,
-    fontWeight:      theme.font.weight.medium,
-    color:           theme.colors.textSecondary,
-    backgroundColor: theme.colors.surfaceAlt,
-    borderWidth:     '1px',
-    borderStyle:     'solid',
-    borderColor:     theme.colors.border,
-    borderRadius:    theme.radius.full,
-    padding:         `${theme.spacing[1]} ${theme.spacing[3]}`,
-  },
-  priceBlock: {
-    display: 'flex', alignItems: 'baseline', gap: theme.spacing[2], marginTop: theme.spacing[2],
-  },
-  price: {
-    fontSize:   theme.font.size['3xl'],
-    fontWeight: theme.font.weight.bold,
-    color:      theme.colors.textPrimary,
-  },
-  change: {
-    fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold,
-  },
-  changePct: {
-    fontSize: theme.font.size.lg, fontWeight: theme.font.weight.semibold,
-  },
-  delayedLabel: {
-    fontSize:        theme.font.size.xs,
-    color:           theme.colors.textMuted,
-    backgroundColor: theme.colors.surfaceAlt,
-    borderWidth:     '1px',
-    borderStyle:     'solid',
-    borderColor:     theme.colors.border,
-    borderRadius:    theme.radius.sm,
-    padding:         `${theme.spacing[1]} ${theme.spacing[2]}`,
-    alignSelf:       'center',
-  },
-  headerRight: {
-    display: 'flex', gap: theme.spacing[2], flexShrink: 0,
-  },
-  tradeBtn: {
-    height:       '38px',
-    padding:      `0 ${theme.spacing[5]}`,
-    fontSize:     theme.font.size.sm,
-    fontWeight:   theme.font.weight.semibold,
-    borderRadius: theme.radius.md,
-    borderWidth:  '1px',
-    borderStyle:  'solid',
-    cursor:       'pointer',
-    fontFamily:   theme.font.family,
-    transition:   `background-color ${theme.transition.fast}, color ${theme.transition.fast}`,
-  },
-  buyBtn: {
-    color: theme.colors.white, backgroundColor: theme.colors.success, borderColor: theme.colors.success,
-  },
-  buyBtnHover: {
-    color: theme.colors.success, backgroundColor: theme.colors.successTint, borderColor: theme.colors.success,
-  },
-  sellBtn: {
-    color: theme.colors.white, backgroundColor: theme.colors.danger, borderColor: theme.colors.danger,
-  },
-  sellBtnHover: {
-    color: theme.colors.danger, backgroundColor: theme.colors.dangerTint, borderColor: theme.colors.danger,
-  },
-  statsRow: {
-    display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: theme.spacing[3],
-  },
-  statBox: {
-    backgroundColor: theme.colors.surface,
-    borderRadius:    theme.radius.md,
-    border:          `1px solid ${theme.colors.border}`,
-    padding:         theme.spacing[4],
-    display:         'flex',
-    flexDirection:   'column',
-    gap:             theme.spacing[1],
-  },
-  statLabel: {
-    fontSize:      theme.font.size.xs,
-    color:         theme.colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
-  },
-  statValue: {
-    fontSize:   theme.font.size.md,
-    fontWeight: theme.font.weight.semibold,
-    color:      theme.colors.textPrimary,
-  },
-  chartCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius:    theme.radius.lg,
-    border:          `1px solid ${theme.colors.border}`,
-    padding:         theme.spacing[6],
-    display:         'flex',
-    flexDirection:   'column',
-    gap:             theme.spacing[4],
-  },
-  chartHeader: {
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-  },
-  chartTitle: {
-    fontSize:   theme.font.size.md,
-    fontWeight: theme.font.weight.semibold,
-    color:      theme.colors.textPrimary,
-  },
-  rangeGroup: {
-    display: 'flex', gap: theme.spacing[1],
-  },
-  rangeBtn: {
-    height:          '28px',
-    padding:         `0 ${theme.spacing[3]}`,
-    fontSize:        theme.font.size.xs,
-    fontWeight:      theme.font.weight.medium,
-    color:           theme.colors.textSecondary,
-    backgroundColor: 'transparent',
-    borderWidth:     '1px',
-    borderStyle:     'solid',
-    borderColor:     theme.colors.border,
-    borderRadius:    theme.radius.md,
-    cursor:          'pointer',
-    fontFamily:      theme.font.family,
-  },
-  rangeBtnActive: {
-    color:           theme.colors.accent,
-    backgroundColor: theme.colors.accentTint,
-    borderColor:     theme.colors.accent,
-  },
-  tooltip: {
-    backgroundColor: theme.colors.surface,
-    borderWidth:     '1px',
-    borderStyle:     'solid',
-    borderColor:     theme.colors.border,
-    borderRadius:    theme.radius.md,
-    padding:         `${theme.spacing[2]} ${theme.spacing[3]}`,
-    boxShadow:       theme.shadow.md,
-  },
-  tooltipDate: {
-    fontSize: theme.font.size.xs, color: theme.colors.textMuted,
-    margin: 0, marginBottom: theme.spacing[1],
-  },
-  tooltipClose: {
-    fontSize: theme.font.size.sm, fontWeight: theme.font.weight.semibold,
-    color: theme.colors.textPrimary, margin: 0,
-  },
-  tooltipVol: {
-    fontSize: theme.font.size.xs, color: theme.colors.textSecondary, margin: 0,
-  },
 };
 
 export default QuotePage;

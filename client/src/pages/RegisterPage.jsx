@@ -10,13 +10,17 @@
  *   Submit button  — filled green → inverts white on hover
  *   Login button   — outlined green → fills green on hover
  *   Go to Login    — outlined green → fills green on hover (success state)
+ *
+ * MOBILE (< 768px):
+ *   Layout stacks vertically — form on top, branding panel below.
  */
 
 import { useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { registerUser } from '../services/auth';
 import { useAuth } from '../context/AuthContext';
-import theme from '../styles/theme';
+import { useTheme } from '../context/ThemeContext';
+import { useMobile } from '../hooks/useBreakpoint';
 import { LeftPanel, Field } from './LoginPage';
 
 function useHover() {
@@ -31,6 +35,9 @@ function useHover() {
 }
 
 export default function RegisterPage() {
+  const theme    = useTheme();
+  const isMobile = useMobile();
+
   const [firstName, setFirstName]             = useState('');
   const [lastName, setLastName]               = useState('');
   const [email, setEmail]                     = useState('');
@@ -83,6 +90,249 @@ export default function RegisterPage() {
       setLoading(false);
     }
   }
+
+  // ── Styles ──────────────────────────────────────────────────────────────────
+  //
+  // Inside component body so they read the current theme from useTheme().
+  //
+  const s = {
+    /*
+     * Two-column layout on desktop, stacked on mobile.
+     * column-reverse on mobile: form appears first (top), branding below.
+     */
+    page: {
+      display:       'flex',
+      flexDirection: isMobile ? 'column-reverse' : 'row',
+      minHeight:     '100vh',
+      fontFamily:    theme.font.family,
+    },
+
+    right: {
+      flex:            1,
+      display:         'flex',
+      alignItems:      'center',
+      justifyContent:  'center',
+      padding:         '2rem',
+      backgroundColor: theme.colors.background,
+    },
+
+    formBox: {
+      width:         '100%',
+      maxWidth:      '440px',
+      display:       'flex',
+      flexDirection: 'column',
+      gap:           theme.spacing[5],
+    },
+
+    formHeader: {
+      marginBottom: theme.spacing[1],
+    },
+
+    heading: {
+      margin:        '0 0 6px 0',
+      fontSize:      theme.font.size['2xl'],
+      fontWeight:    theme.font.weight.bold,
+      color:         theme.colors.textPrimary,
+      letterSpacing: '-0.3px',
+    },
+
+    subheading: {
+      margin:   0,
+      fontSize: theme.font.size.sm,
+      color:    theme.colors.textSecondary,
+    },
+
+    errorBanner: {
+      display:         'flex',
+      alignItems:      'flex-start',
+      gap:             theme.spacing[3],
+      backgroundColor: theme.colors.dangerTint,
+      border:          `1px solid ${theme.colors.danger}`,
+      borderRadius:    theme.radius.md,
+      padding:         `${theme.spacing[3]} ${theme.spacing[4]}`,
+    },
+
+    errorIcon: {
+      width:           '20px',
+      height:          '20px',
+      borderRadius:    theme.radius.full,
+      backgroundColor: theme.colors.danger,
+      color:           theme.colors.white,
+      fontSize:        '11px',
+      fontWeight:      theme.font.weight.bold,
+      display:         'flex',
+      alignItems:      'center',
+      justifyContent:  'center',
+      flexShrink:      0,
+      textAlign:       'center',
+      lineHeight:      '20px',
+    },
+
+    errorText: {
+      margin:     0,
+      fontSize:   theme.font.size.sm,
+      color:      theme.colors.danger,
+      fontWeight: theme.font.weight.medium,
+    },
+
+    form: {
+      display:       'flex',
+      flexDirection: 'column',
+      gap:           theme.spacing[4],
+    },
+
+    nameRow: {
+      display: 'flex',
+      gap:     theme.spacing[3],
+    },
+
+    submitBtn: {
+      height:          '44px',
+      width:           '100%',
+      fontSize:        theme.font.size.sm,
+      fontWeight:      theme.font.weight.semibold,
+      backgroundColor: theme.colors.success,
+      color:           theme.colors.white,
+      border:          `2px solid ${theme.colors.success}`,
+      borderRadius:    theme.radius.md,
+      cursor:          'pointer',
+      fontFamily:      'inherit',
+      marginTop:       theme.spacing[1],
+      letterSpacing:   '0.01em',
+      transition:      `all ${theme.transition.fast}`,
+    },
+
+    submitBtnHover: {
+      backgroundColor: theme.colors.white,
+      color:           theme.colors.success,
+      boxShadow:       theme.shadow.sm,
+    },
+
+    divider: {
+      display:    'flex',
+      alignItems: 'center',
+      gap:        theme.spacing[3],
+    },
+
+    dividerLine: {
+      flex:            1,
+      height:          '1px',
+      backgroundColor: theme.colors.border,
+    },
+
+    dividerText: {
+      fontSize:      theme.font.size.xs,
+      color:         theme.colors.textMuted,
+      whiteSpace:    'nowrap',
+      fontWeight:    theme.font.weight.medium,
+      textTransform: 'uppercase',
+      letterSpacing: '0.04em',
+    },
+
+    loginBtn: {
+      display:         'block',
+      height:          '44px',
+      lineHeight:      '40px',
+      textAlign:       'center',
+      fontSize:        theme.font.size.sm,
+      fontWeight:      theme.font.weight.semibold,
+      color:           theme.colors.success,
+      border:          `2px solid ${theme.colors.success}`,
+      borderRadius:    theme.radius.md,
+      textDecoration:  'none',
+      letterSpacing:   '0.01em',
+      backgroundColor: 'transparent',
+      transition:      `all ${theme.transition.fast}`,
+    },
+
+    /*
+     * Secondary button hover — light green tint, matches SecondNav buyBtnHover.
+     */
+    loginBtnHover: {
+      backgroundColor: theme.colors.successTint,
+      color:           theme.colors.successHover,
+      border:          `2px solid ${theme.colors.successHover}`,
+    },
+
+    // ── Success card ─────────────────────────────────────────────
+    successCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius:    theme.radius.lg,
+      border:          `1px solid ${theme.colors.border}`,
+      boxShadow:       theme.shadow.md,
+      padding:         theme.spacing[8],
+      textAlign:       'center',
+      display:         'flex',
+      flexDirection:   'column',
+      alignItems:      'center',
+      gap:             theme.spacing[4],
+    },
+
+    successIconWrap: {
+      width:           '60px',
+      height:          '60px',
+      borderRadius:    theme.radius.full,
+      backgroundColor: theme.colors.successTint,
+      border:          `2px solid ${theme.colors.success}`,
+      display:         'flex',
+      alignItems:      'center',
+      justifyContent:  'center',
+    },
+
+    successCheck: {
+      fontSize:   '26px',
+      color:      theme.colors.success,
+      fontWeight: theme.font.weight.bold,
+      lineHeight: 1,
+    },
+
+    successHeading: {
+      margin:     0,
+      fontSize:   theme.font.size.xl,
+      fontWeight: theme.font.weight.bold,
+      color:      theme.colors.textPrimary,
+    },
+
+    successText: {
+      margin:     0,
+      fontSize:   theme.font.size.sm,
+      color:      theme.colors.textSecondary,
+      lineHeight: theme.font.lineHeight.normal,
+    },
+
+    successHint: {
+      margin:     0,
+      fontSize:   theme.font.size.xs,
+      color:      theme.colors.textMuted,
+      lineHeight: theme.font.lineHeight.normal,
+    },
+
+    /*
+     * Go to Login — full card width, prominent height.
+     * The only action on the success card — cannot be missed.
+     * Outlined default, fills green on hover.
+     */
+    goLoginBtn: {
+      width:           '100%',
+      height:          '48px',
+      fontSize:        theme.font.size.md,
+      fontWeight:      theme.font.weight.semibold,
+      color:           theme.colors.success,
+      backgroundColor: 'transparent',
+      border:          `2px solid ${theme.colors.success}`,
+      borderRadius:    theme.radius.md,
+      cursor:          'pointer',
+      fontFamily:      'inherit',
+      letterSpacing:   '0.01em',
+      transition:      `all ${theme.transition.fast}`,
+      marginTop:       theme.spacing[2],
+    },
+
+    goLoginBtnHover: {
+      backgroundColor: theme.colors.success,
+      color:           theme.colors.white,
+    },
+  };
 
   return (
     <div style={s.page}>
@@ -239,237 +489,3 @@ export default function RegisterPage() {
     </div>
   );
 }
-
-const s = {
-  page: {
-    display:    'flex',
-    minHeight:  '100vh',
-    fontFamily: theme.font.family,
-  },
-
-  right: {
-    flex:            1,
-    display:         'flex',
-    alignItems:      'center',
-    justifyContent:  'center',
-    padding:         '2rem',
-    backgroundColor: theme.colors.background,
-  },
-
-  formBox: {
-    width:         '100%',
-    maxWidth:      '440px',
-    display:       'flex',
-    flexDirection: 'column',
-    gap:           theme.spacing[5],
-  },
-
-  formHeader: {
-    marginBottom: theme.spacing[1],
-  },
-
-  heading: {
-    margin:        '0 0 6px 0',
-    fontSize:      theme.font.size['2xl'],
-    fontWeight:    theme.font.weight.bold,
-    color:         theme.colors.textPrimary,
-    letterSpacing: '-0.3px',
-  },
-
-  subheading: {
-    margin:   0,
-    fontSize: theme.font.size.sm,
-    color:    theme.colors.textSecondary,
-  },
-
-  errorBanner: {
-    display:         'flex',
-    alignItems:      'flex-start',
-    gap:             theme.spacing[3],
-    backgroundColor: '#fef2f2',
-    border:          '1px solid #fecaca',
-    borderRadius:    theme.radius.md,
-    padding:         `${theme.spacing[3]} ${theme.spacing[4]}`,
-  },
-
-  errorIcon: {
-    width:           '20px',
-    height:          '20px',
-    borderRadius:    theme.radius.full,
-    backgroundColor: theme.colors.danger,
-    color:           theme.colors.white,
-    fontSize:        '11px',
-    fontWeight:      theme.font.weight.bold,
-    display:         'flex',
-    alignItems:      'center',
-    justifyContent:  'center',
-    flexShrink:      0,
-    textAlign:       'center',
-    lineHeight:      '20px',
-  },
-
-  errorText: {
-    margin:     0,
-    fontSize:   theme.font.size.sm,
-    color:      theme.colors.danger,
-    fontWeight: theme.font.weight.medium,
-  },
-
-  form: {
-    display:       'flex',
-    flexDirection: 'column',
-    gap:           theme.spacing[4],
-  },
-
-  nameRow: {
-    display: 'flex',
-    gap:     theme.spacing[3],
-  },
-
-  submitBtn: {
-    height:          '44px',
-    width:           '100%',
-    fontSize:        theme.font.size.sm,
-    fontWeight:      theme.font.weight.semibold,
-    backgroundColor: theme.colors.success,
-    color:           theme.colors.white,
-    border:          `2px solid ${theme.colors.success}`,
-    borderRadius:    theme.radius.md,
-    cursor:          'pointer',
-    fontFamily:      'inherit',
-    marginTop:       theme.spacing[1],
-    letterSpacing:   '0.01em',
-    transition:      `all ${theme.transition.fast}`,
-  },
-
-  submitBtnHover: {
-    backgroundColor: theme.colors.white,
-    color:           theme.colors.success,
-    boxShadow:       theme.shadow.sm,
-  },
-
-  divider: {
-    display:    'flex',
-    alignItems: 'center',
-    gap:        theme.spacing[3],
-  },
-
-  dividerLine: {
-    flex:            1,
-    height:          '1px',
-    backgroundColor: theme.colors.border,
-  },
-
-  dividerText: {
-    fontSize:      theme.font.size.xs,
-    color:         theme.colors.textMuted,
-    whiteSpace:    'nowrap',
-    fontWeight:    theme.font.weight.medium,
-    textTransform: 'uppercase',
-    letterSpacing: '0.04em',
-  },
-
-  loginBtn: {
-    display:         'block',
-    height:          '44px',
-    lineHeight:      '40px',
-    textAlign:       'center',
-    fontSize:        theme.font.size.sm,
-    fontWeight:      theme.font.weight.semibold,
-    color:           theme.colors.success,
-    border:          `2px solid ${theme.colors.success}`,
-    borderRadius:    theme.radius.md,
-    textDecoration:  'none',
-    letterSpacing:   '0.01em',
-    backgroundColor: 'transparent',
-    transition:      `all ${theme.transition.fast}`,
-  },
-
-  /*
-   * Secondary button hover — light green tint, matches SecondNav buyBtnHover.
-   */
-  loginBtnHover: {
-    backgroundColor: theme.colors.successTint,
-    color:           theme.colors.successHover,
-    border:          `2px solid ${theme.colors.successHover}`,
-  },
-
-  // ── Success card ─────────────────────────────────────────────
-  successCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius:    theme.radius.lg,
-    border:          `1px solid ${theme.colors.border}`,
-    boxShadow:       theme.shadow.md,
-    padding:         theme.spacing[8],
-    textAlign:       'center',
-    display:         'flex',
-    flexDirection:   'column',
-    alignItems:      'center',
-    gap:             theme.spacing[4],
-  },
-
-  successIconWrap: {
-    width:           '60px',
-    height:          '60px',
-    borderRadius:    theme.radius.full,
-    backgroundColor: theme.colors.successTint,
-    border:          `2px solid ${theme.colors.success}`,
-    display:         'flex',
-    alignItems:      'center',
-    justifyContent:  'center',
-  },
-
-  successCheck: {
-    fontSize:   '26px',
-    color:      theme.colors.success,
-    fontWeight: theme.font.weight.bold,
-    lineHeight: 1,
-  },
-
-  successHeading: {
-    margin:     0,
-    fontSize:   theme.font.size.xl,
-    fontWeight: theme.font.weight.bold,
-    color:      theme.colors.textPrimary,
-  },
-
-  successText: {
-    margin:     0,
-    fontSize:   theme.font.size.sm,
-    color:      theme.colors.textSecondary,
-    lineHeight: theme.font.lineHeight.normal,
-  },
-
-  successHint: {
-    margin:     0,
-    fontSize:   theme.font.size.xs,
-    color:      theme.colors.textMuted,
-    lineHeight: theme.font.lineHeight.normal,
-  },
-
-  /*
-   * Go to Login — full card width, prominent height.
-   * The only action on the success card — cannot be missed.
-   * Outlined default, fills green on hover.
-   */
-  goLoginBtn: {
-    width:           '100%',
-    height:          '48px',
-    fontSize:        theme.font.size.md,
-    fontWeight:      theme.font.weight.semibold,
-    color:           theme.colors.success,
-    backgroundColor: 'transparent',
-    border:          `2px solid ${theme.colors.success}`,
-    borderRadius:    theme.radius.md,
-    cursor:          'pointer',
-    fontFamily:      'inherit',
-    letterSpacing:   '0.01em',
-    transition:      `all ${theme.transition.fast}`,
-    marginTop:       theme.spacing[2],
-  },
-
-  goLoginBtnHover: {
-    backgroundColor: theme.colors.success,
-    color:           theme.colors.white,
-  },
-};

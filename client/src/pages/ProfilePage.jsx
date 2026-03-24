@@ -21,7 +21,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getProfile, updateProfile, changePassword } from '../services/user';
-import theme from '../styles/theme';
+import { useTheme } from '../context/ThemeContext';
 import countries from '../data/countries';
 
 /*
@@ -59,6 +59,7 @@ const UserIcon = () => (
 );
 
 export default function ProfilePage() {
+  const theme = useTheme();
   const { updateUser } = useAuth();
 
   // ── Profile form state ───────────────────────────────────────
@@ -211,280 +212,7 @@ export default function ProfilePage() {
     });
   }
 
-  if (profileLoading) {
-    return (
-      <div style={s.loadingWrap}>
-        <div style={s.spinner} />
-      </div>
-    );
-  }
-
-  return (
-    <div style={s.page}>
-      <div style={s.inner}>
-
-        {/* ── Section 1: Header ─────────────────────────────── */}
-        <div style={s.card}>
-          <div style={s.headerRow}>
-            <div style={s.avatarWrap}>
-              <UserIcon />
-            </div>
-            <div style={s.headerInfo}>
-              <h1 style={s.headerName}>
-                {profile.firstName} {profile.lastName}
-              </h1>
-              <p style={s.headerEmail}>{headerData.email}</p>
-              <div style={s.headerMeta}>
-                <span style={s.metaItem}>
-                  Member since {formatDate(headerData.createdAt)}
-                </span>
-                {headerData.isVerified ? (
-                  <span style={s.verifiedBadge}>✓ Verified</span>
-                ) : (
-                  <span style={s.unverifiedBadge}>Unverified</span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Section 2: Personal Info ──────────────────────── */}
-        <div style={s.card}>
-          <h2 style={s.sectionTitle}>Personal Information</h2>
-          <p style={s.sectionSubtitle}>
-            Update your profile details. Email cannot be changed.
-          </p>
-
-          <form onSubmit={handleProfileSave} style={s.form}>
-
-            {/* First + Last name side by side */}
-            <div style={s.nameRow}>
-              <ProfileField
-                label="First name"
-                value={profile.firstName}
-                onChange={v => setProfile(p => ({ ...p, firstName: v }))}
-                error={profileErrors.firstName}
-                placeholder="Jane"
-              />
-              <ProfileField
-                label="Last name"
-                value={profile.lastName}
-                onChange={v => setProfile(p => ({ ...p, lastName: v }))}
-                error={profileErrors.lastName}
-                placeholder="Smith"
-              />
-            </div>
-
-            <ProfileField
-              label="Display name"
-              value={profile.displayName}
-              onChange={v => setProfile(p => ({ ...p, displayName: v }))}
-              error={profileErrors.displayName}
-              placeholder="Optional — shown on leaderboards"
-            />
-
-            {/* Country dropdown */}
-            <div style={s.field}>
-              <label style={s.label}>Country</label>
-              <select
-                value={profile.country}
-                onChange={e => setProfile(p => ({ ...p, country: e.target.value }))}
-                style={s.select}
-              >
-                <option value="">Select country</option>
-                {countries.map(c => (
-                  <option key={c.code} value={c.code}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <ProfileField
-              label="Phone"
-              value={profile.phone}
-              onChange={v => setProfile(p => ({ ...p, phone: v }))}
-              error={profileErrors.phone}
-              placeholder="Optional"
-              type="tel"
-              maxLength={10}
-            />
-
-            {/* Bio — textarea with character counter */}
-            <div style={s.field}>
-              <div style={s.bioLabelRow}>
-                <label style={s.label}>Bio</label>
-                <span style={{
-                  ...s.charCount,
-                  color: profile.bio.length > 180
-                    ? theme.colors.danger
-                    : theme.colors.textMuted,
-                }}>
-                  {profile.bio.length}/200
-                </span>
-              </div>
-              <textarea
-                value={profile.bio}
-                onChange={e => setProfile(p => ({ ...p, bio: e.target.value }))}
-                placeholder="Optional — tell others about yourself"
-                maxLength={200}
-                rows={3}
-                style={s.textarea}
-              />
-              {profileErrors.bio && (
-                <p style={s.fieldError}>{profileErrors.bio}</p>
-              )}
-            </div>
-
-            {/* Inline save message */}
-            {profileMsg.text && (
-              <p style={profileMsg.type === 'success' ? s.successMsg : s.errorMsg}>
-                {profileMsg.text}
-              </p>
-            )}
-
-            <div style={s.saveRow}>
-              <button
-                type="submit"
-                disabled={profileSaving}
-                style={{
-                  ...s.saveBtn,
-                  ...(profileSaveHovered && !profileSaving ? s.saveBtnHover : {}),
-                  opacity: profileSaving ? 0.75 : 1,
-                  cursor:  profileSaving ? 'not-allowed' : 'pointer',
-                }}
-                {...profileSaveHoverProps}
-              >
-                {profileSaving ? 'Saving...' : 'Save profile'}
-              </button>
-            </div>
-
-          </form>
-        </div>
-
-        {/* ── Section 3: Change Password ────────────────────── */}
-        <div style={s.card}>
-          <h2 style={s.sectionTitle}>Change Password</h2>
-          <p style={s.sectionSubtitle}>
-            Requires your current password for verification.
-          </p>
-
-          <form onSubmit={handlePasswordSave} style={s.form}>
-
-            <PasswordField
-              label="Current password"
-              value={pwForm.currentPassword}
-              onChange={v => setPwForm(p => ({ ...p, currentPassword: v }))}
-              error={pwErrors.currentPassword}
-              placeholder="Your current password"
-            />
-
-            <PasswordField
-              label="New password"
-              value={pwForm.newPassword}
-              onChange={v => setPwForm(p => ({ ...p, newPassword: v }))}
-              error={pwErrors.newPassword}
-              placeholder="Minimum 10 characters"
-            />
-
-            <PasswordField
-              label="Confirm new password"
-              value={pwForm.confirmPassword}
-              onChange={v => setPwForm(p => ({ ...p, confirmPassword: v }))}
-              error={pwErrors.confirmPassword}
-              placeholder="Repeat new password"
-            />
-
-            {pwMsg.text && (
-              <p style={pwMsg.type === 'success' ? s.successMsg : s.errorMsg}>
-                {pwMsg.text}
-              </p>
-            )}
-
-            <div style={s.saveRow}>
-              <button
-                type="submit"
-                disabled={pwSaving}
-                style={{
-                  ...s.saveBtn,
-                  ...(pwSaveHovered && !pwSaving ? s.saveBtnHover : {}),
-                  opacity: pwSaving ? 0.75 : 1,
-                  cursor:  pwSaving ? 'not-allowed' : 'pointer',
-                }}
-                {...pwSaveHoverProps}
-              >
-                {pwSaving ? 'Saving...' : 'Update password'}
-              </button>
-            </div>
-
-          </form>
-        </div>
-
-      </div>
-    </div>
-  );
-}
-
-// ── PROFILE FIELD ──────────────────────────────────────────────────────────
-function ProfileField({ label, value, onChange, placeholder, error, type = 'text', maxLength }) {
-  const [focused, setFocused] = useState(false);
-  return (
-    <div style={{ ...s.field, flex: 1 }}>
-      <label style={s.label}>{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        maxLength={maxLength}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        style={{
-          ...s.input,
-          borderColor: error
-            ? theme.colors.danger
-            : focused
-            ? theme.colors.accent
-            : theme.colors.border,
-          boxShadow: focused && !error
-            ? `0 0 0 3px ${theme.colors.accentTint}`
-            : 'none',
-        }}
-      />
-      {error && <p style={s.fieldError}>{error}</p>}
-    </div>
-  );
-}
-
-// ── PASSWORD FIELD ─────────────────────────────────────────────────────────
-function PasswordField({ label, value, onChange, placeholder, error }) {
-  const [focused, setFocused] = useState(false);
-  return (
-    <div style={s.field}>
-      <label style={s.label}>{label}</label>
-      <input
-        type="password"
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        style={{
-          ...s.input,
-          borderColor: error
-            ? theme.colors.danger
-            : focused
-            ? theme.colors.accent
-            : theme.colors.border,
-          boxShadow: focused && !error
-            ? `0 0 0 3px ${theme.colors.accentTint}`
-            : 'none',
-        }}
-      />
-      {error && <p style={s.fieldError}>{error}</p>}
-    </div>
-  );
-}
-
-// ── STYLES ─────────────────────────────────────────────────────────────────
+  // ── STYLES ─────────────────────────────────────────────────────────────────
 const s = {
   page: {
     padding:   `${theme.spacing[6]} ${theme.spacing[6]}`,
@@ -733,3 +461,343 @@ const s = {
     border:          `2px solid ${theme.colors.accentHover}`,
   },
 };
+
+  if (profileLoading) {
+    return (
+      <div style={s.loadingWrap}>
+        <div style={s.spinner} />
+      </div>
+    );
+  }
+
+  return (
+    <div style={s.page}>
+      <div style={s.inner}>
+
+        {/* ── Section 1: Header ─────────────────────────────── */}
+        <div style={s.card}>
+          <div style={s.headerRow}>
+            <div style={s.avatarWrap}>
+              <UserIcon />
+            </div>
+            <div style={s.headerInfo}>
+              <h1 style={s.headerName}>
+                {profile.firstName} {profile.lastName}
+              </h1>
+              <p style={s.headerEmail}>{headerData.email}</p>
+              <div style={s.headerMeta}>
+                <span style={s.metaItem}>
+                  Member since {formatDate(headerData.createdAt)}
+                </span>
+                {headerData.isVerified ? (
+                  <span style={s.verifiedBadge}>✓ Verified</span>
+                ) : (
+                  <span style={s.unverifiedBadge}>Unverified</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Section 2: Personal Info ──────────────────────── */}
+        <div style={s.card}>
+          <h2 style={s.sectionTitle}>Personal Information</h2>
+          <p style={s.sectionSubtitle}>
+            Update your profile details. Email cannot be changed.
+          </p>
+
+          <form onSubmit={handleProfileSave} style={s.form}>
+
+            {/* First + Last name side by side */}
+            <div style={s.nameRow}>
+              <ProfileField
+                label="First name"
+                value={profile.firstName}
+                onChange={v => setProfile(p => ({ ...p, firstName: v }))}
+                error={profileErrors.firstName}
+                placeholder="Jane"
+              />
+              <ProfileField
+                label="Last name"
+                value={profile.lastName}
+                onChange={v => setProfile(p => ({ ...p, lastName: v }))}
+                error={profileErrors.lastName}
+                placeholder="Smith"
+              />
+            </div>
+
+            <ProfileField
+              label="Display name"
+              value={profile.displayName}
+              onChange={v => setProfile(p => ({ ...p, displayName: v }))}
+              error={profileErrors.displayName}
+              placeholder="Optional — shown on leaderboards"
+            />
+
+            {/* Country dropdown */}
+            <div style={s.field}>
+              <label style={s.label}>Country</label>
+              <select
+                value={profile.country}
+                onChange={e => setProfile(p => ({ ...p, country: e.target.value }))}
+                style={s.select}
+              >
+                <option value="">Select country</option>
+                {countries.map(c => (
+                  <option key={c.code} value={c.code}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <ProfileField
+              label="Phone"
+              value={profile.phone}
+              onChange={v => setProfile(p => ({ ...p, phone: v }))}
+              error={profileErrors.phone}
+              placeholder="Optional"
+              type="tel"
+              maxLength={10}
+            />
+
+            {/* Bio — textarea with character counter */}
+            <div style={s.field}>
+              <div style={s.bioLabelRow}>
+                <label style={s.label}>Bio</label>
+                <span style={{
+                  ...s.charCount,
+                  color: profile.bio.length > 180
+                    ? theme.colors.danger
+                    : theme.colors.textMuted,
+                }}>
+                  {profile.bio.length}/200
+                </span>
+              </div>
+              <textarea
+                value={profile.bio}
+                onChange={e => setProfile(p => ({ ...p, bio: e.target.value }))}
+                placeholder="Optional — tell others about yourself"
+                maxLength={200}
+                rows={3}
+                style={s.textarea}
+              />
+              {profileErrors.bio && (
+                <p style={s.fieldError}>{profileErrors.bio}</p>
+              )}
+            </div>
+
+            {/* Inline save message */}
+            {profileMsg.text && (
+              <p style={profileMsg.type === 'success' ? s.successMsg : s.errorMsg}>
+                {profileMsg.text}
+              </p>
+            )}
+
+            <div style={s.saveRow}>
+              <button
+                type="submit"
+                disabled={profileSaving}
+                style={{
+                  ...s.saveBtn,
+                  ...(profileSaveHovered && !profileSaving ? s.saveBtnHover : {}),
+                  opacity: profileSaving ? 0.75 : 1,
+                  cursor:  profileSaving ? 'not-allowed' : 'pointer',
+                }}
+                {...profileSaveHoverProps}
+              >
+                {profileSaving ? 'Saving...' : 'Save profile'}
+              </button>
+            </div>
+
+          </form>
+        </div>
+
+        {/* ── Section 3: Change Password ────────────────────── */}
+        <div style={s.card}>
+          <h2 style={s.sectionTitle}>Change Password</h2>
+          <p style={s.sectionSubtitle}>
+            Requires your current password for verification.
+          </p>
+
+          <form onSubmit={handlePasswordSave} style={s.form}>
+
+            <PasswordField
+              label="Current password"
+              value={pwForm.currentPassword}
+              onChange={v => setPwForm(p => ({ ...p, currentPassword: v }))}
+              error={pwErrors.currentPassword}
+              placeholder="Your current password"
+            />
+
+            <PasswordField
+              label="New password"
+              value={pwForm.newPassword}
+              onChange={v => setPwForm(p => ({ ...p, newPassword: v }))}
+              error={pwErrors.newPassword}
+              placeholder="Minimum 10 characters"
+            />
+
+            <PasswordField
+              label="Confirm new password"
+              value={pwForm.confirmPassword}
+              onChange={v => setPwForm(p => ({ ...p, confirmPassword: v }))}
+              error={pwErrors.confirmPassword}
+              placeholder="Repeat new password"
+            />
+
+            {pwMsg.text && (
+              <p style={pwMsg.type === 'success' ? s.successMsg : s.errorMsg}>
+                {pwMsg.text}
+              </p>
+            )}
+
+            <div style={s.saveRow}>
+              <button
+                type="submit"
+                disabled={pwSaving}
+                style={{
+                  ...s.saveBtn,
+                  ...(pwSaveHovered && !pwSaving ? s.saveBtnHover : {}),
+                  opacity: pwSaving ? 0.75 : 1,
+                  cursor:  pwSaving ? 'not-allowed' : 'pointer',
+                }}
+                {...pwSaveHoverProps}
+              >
+                {pwSaving ? 'Saving...' : 'Update password'}
+              </button>
+            </div>
+
+          </form>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ── PROFILE FIELD ──────────────────────────────────────────────────────────
+function ProfileField({ label, value, onChange, placeholder, error, type = 'text', maxLength }) {
+  const theme = useTheme();
+  const [focused, setFocused] = useState(false);
+
+  const s = {
+    field: {
+      display:       'flex',
+      flexDirection: 'column',
+      gap:           '5px',
+      flex:          1,
+    },
+    label: {
+      fontSize:   theme.font.size.sm,
+      fontWeight: theme.font.weight.medium,
+      color:      theme.colors.textPrimary,
+    },
+    input: {
+      height:          theme.ui.inputHeight,
+      padding:         `0 ${theme.spacing[3]}`,
+      fontSize:        theme.font.size.sm,
+      border:          `1px solid ${theme.colors.border}`,
+      borderRadius:    theme.radius.md,
+      outline:         'none',
+      color:           theme.colors.textPrimary,
+      backgroundColor: theme.colors.surface,
+      fontFamily:      'inherit',
+      width:           '100%',
+      transition:      `border-color ${theme.transition.fast}, box-shadow ${theme.transition.fast}`,
+    },
+    fieldError: {
+      margin:   0,
+      fontSize: theme.font.size.xs,
+      color:    theme.colors.danger,
+    },
+  };
+
+  return (
+    <div style={s.field}>
+      <label style={s.label}>{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={{
+          ...s.input,
+          borderColor: error
+            ? theme.colors.danger
+            : focused
+            ? theme.colors.accent
+            : theme.colors.border,
+          boxShadow: focused && !error
+            ? `0 0 0 3px ${theme.colors.accentTint}`
+            : 'none',
+        }}
+      />
+      {error && <p style={s.fieldError}>{error}</p>}
+    </div>
+  );
+}
+
+// ── PASSWORD FIELD ─────────────────────────────────────────────────────────
+function PasswordField({ label, value, onChange, placeholder, error }) {
+  const theme = useTheme();
+  const [focused, setFocused] = useState(false);
+
+  const s = {
+    field: {
+      display:       'flex',
+      flexDirection: 'column',
+      gap:           '5px',
+    },
+    label: {
+      fontSize:   theme.font.size.sm,
+      fontWeight: theme.font.weight.medium,
+      color:      theme.colors.textPrimary,
+    },
+    input: {
+      height:          theme.ui.inputHeight,
+      padding:         `0 ${theme.spacing[3]}`,
+      fontSize:        theme.font.size.sm,
+      border:          `1px solid ${theme.colors.border}`,
+      borderRadius:    theme.radius.md,
+      outline:         'none',
+      color:           theme.colors.textPrimary,
+      backgroundColor: theme.colors.surface,
+      fontFamily:      'inherit',
+      width:           '100%',
+      transition:      `border-color ${theme.transition.fast}, box-shadow ${theme.transition.fast}`,
+    },
+    fieldError: {
+      margin:   0,
+      fontSize: theme.font.size.xs,
+      color:    theme.colors.danger,
+    },
+  };
+
+  return (
+    <div style={s.field}>
+      <label style={s.label}>{label}</label>
+      <input
+        type="password"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={{
+          ...s.input,
+          borderColor: error
+            ? theme.colors.danger
+            : focused
+            ? theme.colors.accent
+            : theme.colors.border,
+          boxShadow: focused && !error
+            ? `0 0 0 3px ${theme.colors.accentTint}`
+            : 'none',
+        }}
+      />
+      {error && <p style={s.fieldError}>{error}</p>}
+    </div>
+  );
+}

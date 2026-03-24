@@ -6,22 +6,33 @@
  *
  * The problem it solves:
  *  The logged-in user's data is needed in many places:
- *   - Navbar (to show the username)
- *   - Dashboard (to show their portfolio)
- *   - Trade form (to know who is trading)
+ *   - TopNav (to show the username)
  *   - Protected routes (to check if they are logged in)
+ *   - ProfilePage (to sync name updates without re-login)
  *
- *  Without Context, you would pass the user object as a prop from
+ *  The active theme is needed in every component that renders UI:
+ *   - All pages, nav bars, modals, panels
+ *   - Switches between light and dark color palettes
+ *
+ *  Without Context, you would pass these objects as props from
  *  the top level down through every component in between,
  *  even components that do not use it themselves.
  *  This is called prop drilling and it makes code messy fast.
  *
- *  With Context, any component can access the user data directly
+ *  With Context, any component can access shared state directly
  *  without it being passed manually through the tree.
  *
- * Files planned:
- *  - AuthContext.jsx  → stores the logged-in user, their token,
- *                       login function, and logout function
- *                       any component that needs to know who is
- *                       logged in imports from here
+ * Files:
+ *  - AuthContext.jsx   → stores the logged-in user, their token,
+ *                        login function, logout function, and
+ *                        updateUser for syncing profile changes.
+ *                        Any component that needs to know who is
+ *                        logged in imports useAuth() from here.
+ *
+ *  - ThemeContext.jsx  → stores the active theme (light or dark),
+ *                        persists preference in localStorage,
+ *                        syncs data-theme attribute on <html>.
+ *                        useTheme() returns the active theme object.
+ *                        useThemeMode() returns { isDark, toggleTheme }
+ *                        for the toggle button in TopNav.
  */

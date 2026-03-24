@@ -25,13 +25,16 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import TopNav from './TopNav';
 import SecondNav from './SecondNav';
-import theme from '../../styles/theme';
+import { useTheme } from '../../context/ThemeContext';
+import { useMobile } from '../../hooks/useBreakpoint';
 import TradePanel from '../modals/TradePanel';
 import OrderConfirmation     from '../modals/OrderConfirmation';
 import ExecutionConfirmation from '../modals/ExecutionConfirmation';
 import GetQuotePopup from '../modals/GetQuotePopup';
 
 const Layout = () => {
+  const theme    = useTheme();
+  const isMobile = useMobile();
 
   // ── Buy panel state ─────────────────────────────────────────────────────────
   //
@@ -41,7 +44,7 @@ const Layout = () => {
   const [buyPanel, setBuyPanel] = useState({ open: false, ticker: null, currentPrice: null });
 
   // ── Sell panel state — same shape as buyPanel ───────────────────────────────
- const [sellPanel, setSellPanel] = useState({ open: false, ticker: null, availableShares: null });
+  const [sellPanel, setSellPanel] = useState({ open: false, ticker: null, availableShares: null });
 
   // ── Get Quote popup ─────────────────────────────────────────────────────────
   const [quotePopupOpen, setQuotePopupOpen] = useState(false);
@@ -108,6 +111,42 @@ const Layout = () => {
     closeAll();
     // Increment refreshKey — pages watching this will re-fetch data.
     setRefreshKey(prev => prev + 1);
+  };
+
+
+  // ── Styles ──────────────────────────────────────────────────────────────────
+  //
+  // Mobile: SecondNav stacks to ~100px tall (two rows of ~48px each).
+  // Desktop: topNavHeight (60px) + secondNavHeight (52px).
+  //
+  const mainPaddingTop = isMobile
+    ? 'calc(60px + 100px)'
+    : `calc(${theme.layout.topNavHeight} + ${theme.layout.secondNavHeight})`;
+
+  const contentPadding = isMobile
+    ? theme.spacing[3]
+    : `${theme.spacing[6]} ${theme.spacing[6]}`;
+
+  const styles = {
+    root: {
+      minHeight:       '100vh',
+      backgroundColor: theme.colors.background,
+      fontFamily:      theme.font.family,
+    },
+
+    main: {
+      // Push content below both fixed nav bars.
+      // calc() adds the two heights together at render time.
+      paddingTop: mainPaddingTop,
+      minHeight:  '100vh',
+    },
+
+    content: {
+      // Center content and cap its width on large screens.
+      maxWidth: theme.layout.contentMaxWidth,
+      margin:   '0 auto',
+      padding:  contentPadding,
+    },
   };
 
 
@@ -180,31 +219,5 @@ const Layout = () => {
     </div>
   );
 };
-
-
-// ── Styles ───────────────────────────────────────────────────────────────────
-
-const styles = {
-  root: {
-    minHeight: '100vh',
-    backgroundColor: theme.colors.background,
-    fontFamily: theme.font.family,
-  },
-
-  main: {
-    // Push content below both fixed nav bars.
-    // calc() adds the two heights together at render time.
-    paddingTop: `calc(${theme.layout.topNavHeight} + ${theme.layout.secondNavHeight})`,
-    minHeight: '100vh',
-  },
-
-  content: {
-    // Center content and cap its width on large screens.
-    maxWidth: theme.layout.contentMaxWidth,
-    margin: '0 auto',
-    padding: `${theme.spacing[6]} ${theme.spacing[6]}`,
-  },
-};
-
 
 export default Layout;

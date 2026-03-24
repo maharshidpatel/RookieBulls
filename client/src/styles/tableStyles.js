@@ -10,10 +10,12 @@
  *
  * How it fits:
  *   Imported by any page or component that renders a table.
- *   Spread into local styles objects — local overrides still possible.
+ *   Called with the active theme object — supports both light and dark mode.
  *
  * Usage:
- *   import tableStyles from '../styles/tableStyles';
+ *   import getTableStyles from '../styles/tableStyles';
+ *   // inside component body, after const theme = useTheme():
+ *   const tableStyles = getTableStyles(theme);
  *   const styles = { ...tableStyles, myLocalStyle: { ... } };
  *
  *   Or selectively:
@@ -23,12 +25,16 @@
  * Pages using this:
  *   HoldingsPage.jsx, HistoryPage.jsx, SummaryPage.jsx (top movers tables)
  *   QuotePage.jsx (Step 6.12)
+ *
+ * Why a function instead of a static object:
+ *   The original was a static object that imported theme at module level.
+ *   Module-level imports evaluate once — they never update when the user
+ *   toggles dark mode. Wrapping in a function means each component call
+ *   passes the current theme from useTheme(), so colors stay in sync.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import theme from './theme';
-
-const tableStyles = {
+const getTableStyles = (theme) => ({
 
   // ── Table container ─────────────────────────────────────────────────────────
   //
@@ -118,6 +124,6 @@ const tableStyles = {
     fontSize: theme.font.size.sm,
     color: theme.colors.textMuted,
   },
-};
+});
 
-export default tableStyles;
+export default getTableStyles;

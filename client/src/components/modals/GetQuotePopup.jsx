@@ -15,14 +15,79 @@
 
 import { useNavigate } from 'react-router-dom';
 import TickerSearch from '../TickerSearch';
-import theme from '../../styles/theme';
+import { useTheme } from '../../context/ThemeContext';
 
 const GetQuotePopup = ({ onClose }) => {
   const navigate = useNavigate();
+  const theme = useTheme();
 
   const handleTickerSelect = (result) => {
     onClose();
     navigate(`/quote/${result.ticker}`);
+  };
+
+  const styles = {
+    backdrop: {
+      position:        'fixed',
+      inset:           0,
+      backgroundColor: theme.colors.overlay,
+      zIndex:          150,
+    },
+
+    modal: {
+      position:        'fixed',
+      top:             '20%',       // sits in upper third — leaves room for dropdown below
+      left:            '50%',
+      transform:       'translateX(-50%)',
+      width:           '440px',
+      maxWidth:        'calc(100vw - 32px)',
+      backgroundColor: theme.colors.surface,
+      borderRadius:    theme.radius.lg,
+      boxShadow:       theme.shadow.lg,
+      zIndex:          151,
+      display:         'flex',
+      flexDirection:   'column',
+      // No overflow:hidden — allows TickerSearch dropdown to extend below modal
+    },
+
+    header: {
+      display:        'flex',
+      alignItems:     'center',
+      justifyContent: 'space-between',
+      padding:        `${theme.spacing[4]} ${theme.spacing[6]}`,
+      borderBottom:   `1px solid ${theme.colors.border}`,
+    },
+
+    title: {
+      fontSize:   theme.font.size.lg,
+      fontWeight: theme.font.weight.bold,
+      color:      theme.colors.textPrimary,
+    },
+
+    closeBtn: {
+      fontSize:   theme.font.size.md,
+      color:      theme.colors.textMuted,
+      background: 'none',
+      border:     'none',
+      cursor:     'pointer',
+      padding:    theme.spacing[1],
+      lineHeight: 1,
+    },
+
+    body: {
+      padding:       theme.spacing[6],
+      display:       'flex',
+      flexDirection: 'column',
+      gap:           theme.spacing[3],
+      // paddingBottom large enough so dropdown has visual breathing room
+      paddingBottom: theme.spacing[8],
+    },
+
+    hint: {
+      fontSize: theme.font.size.sm,
+      color:    theme.colors.textMuted,
+      margin:   0,
+    },
   };
 
   return (
@@ -54,70 +119,6 @@ const GetQuotePopup = ({ onClose }) => {
       </div>
     </>
   );
-};
-
-
-const styles = {
-  backdrop: {
-    position:        'fixed',
-    inset:           0,
-    backgroundColor: theme.colors.overlay,
-    zIndex:          150,
-  },
-
-  modal: {
-    position:        'fixed',
-    top:             '20%',       // sits in upper third — leaves room for dropdown below
-    left:            '50%',
-    transform:       'translateX(-50%)',
-    width:           '440px',
-    backgroundColor: theme.colors.surface,
-    borderRadius:    theme.radius.lg,
-    boxShadow:       theme.shadow.lg,
-    zIndex:          151,
-    display:         'flex',
-    flexDirection:   'column',
-    // No overflow:hidden — allows TickerSearch dropdown to extend below modal
-  },
-
-  header: {
-    display:        'flex',
-    alignItems:     'center',
-    justifyContent: 'space-between',
-    padding:        `${theme.spacing[4]} ${theme.spacing[6]}`,
-    borderBottom:   `1px solid ${theme.colors.border}`,
-  },
-
-  title: {
-    fontSize:   theme.font.size.lg,
-    fontWeight: theme.font.weight.bold,
-    color:      theme.colors.textPrimary,
-  },
-
-  closeBtn: {
-    fontSize:   theme.font.size.md,
-    color:      theme.colors.textMuted,
-    background: 'none',
-    border:     'none',
-    cursor:     'pointer',
-    padding:    theme.spacing[1],
-    lineHeight: 1,
-  },
-
-  body: {
-    padding:       theme.spacing[6],
-    display:       'flex',
-    flexDirection: 'column',
-    gap:           theme.spacing[3],
-    // paddingBottom large enough so dropdown has visual breathing room
-    paddingBottom: theme.spacing[8],
-  },
-
-  hint: {
-    fontSize: theme.font.size.sm,
-    color:    theme.colors.textMuted,
-    margin:   0,
-  },
 };
 
 export default GetQuotePopup;
