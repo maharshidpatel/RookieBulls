@@ -23,8 +23,8 @@ Let's Encrypt SSL, Cloudflare DNS and CDN. CI/CD via GitHub Actions on push to m
 ## System Architecture
 ```
                         ┌─────────────────────────────────┐
-                        │           Cloudflare CDN         │
-                        │     DNS + DDoS Protection        │
+                        │           Cloudflare CDN        │
+                        │     DNS + DDoS Protection       │
                         └────────────┬────────────────────┘
                                      │
               ┌──────────────────────┼─────────────────────────┐
