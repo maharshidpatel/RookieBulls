@@ -7,32 +7,36 @@ equities using delayed North American market data. No real money. No live tradin
 > This project is not a financial product. It does not provide financial
 > advice or access to real markets.
 
-> Status: Active development — MVP complete, production deployment in progress.
+> Status: Active development — live in production at rookiebulls.com
 
 ---
 
 ## Live Demo
 
-_Coming soon — deploying to DigitalOcean VPS with Nginx + SSL._
+**[rookiebulls.com](https://rookiebulls.com)**
+
+Deployed on a DigitalOcean VPS — Docker Compose, Nginx reverse proxy,
+Let's Encrypt SSL, Cloudflare DNS and CDN. CI/CD via GitHub Actions on push to main.
 
 ---
 
 ## System Architecture
 ```
                         ┌─────────────────────────────────┐
-                        │           Cloudflare CDN        │
+                        │           Cloudflare CDN         │
+                        │     DNS + DDoS Protection        │
                         └────────────┬────────────────────┘
                                      │
               ┌──────────────────────┼─────────────────────────┐
-              │                      │                         │
+              │                      │                          │
      ┌────────▼────────┐   ┌─────────▼──────────┐   ┌──────────▼────────┐
-     │  Vercel (React) │   │  DigitalOcean VPS  │   │   GitHub Actions  │
-     │  Vite Frontend  │   │ Nginx Reverse Proxy│   │   CI/CD Pipeline  │
+     │  React Frontend │   │  DigitalOcean VPS  │   │   GitHub Actions  │
+     │  (Nginx served) │   │ Nginx Reverse Proxy│   │   CI/CD Pipeline  │
      └────────┬────────┘   └─────────┬──────────┘   └───────────────────┘
               │                      │
               │           ┌──────────▼──────────┐
-              └──────────►│ Express API Server  │
-                          │ Node.js + JWT Auth  │
+              └──────────►│  Express API Server │
+                          │  Node.js + JWT Auth │
                           └──────┬───────┬──────┘
                                  │       │
                     ┌────────────▼┐    ┌─▼─────────────┐
@@ -62,9 +66,9 @@ _Coming soon — deploying to DigitalOcean VPS with Nginx + SSL._
 | SSL              | Let's Encrypt (Certbot)               |
 | Containerization | Docker Compose                        |
 | Hosting          | DigitalOcean VPS                      |
-| Frontend Deploy  | Vercel                                |
+| Frontend Deploy  | Nginx (serves React dist/ from VPS)   |
 | DNS / CDN        | Cloudflare                            |
-| CI/CD            | GitHub Actions (in progress)          |
+| CI/CD            | GitHub Actions                        |
 
 ---
 
@@ -74,6 +78,9 @@ _Coming soon — deploying to DigitalOcean VPS with Nginx + SSL._
 - JWT access + refresh token rotation
 - Refresh tokens stored in HTTP-only cookies
 - Token invalidation on logout and rotation on every refresh
+- Email verification via crypto-generated tokens with 24hr expiry
+- Hard login block until email is verified
+- Rate limiting across register, login, and resend endpoints (express-rate-limit)
 
 ### Virtual Wallet
 - Each user receives $100,000 in virtual credits on registration
@@ -100,10 +107,12 @@ _Coming soon — deploying to DigitalOcean VPS with Nginx + SSL._
 
 ### Frontend
 - Custom design system — no component library dependency
-- 7 pages: Login, Register, Dashboard, Summary, Holdings, Trade History, Quote
+- 8 pages: Login, Register, Verify, Profile, Summary, Holdings, Trade History, Quote
 - Candlestick chart — custom SVG renderer using OHLC data
 - Trade panels and confirmation modals
 - Live price polling via interval-based fetch
+- Light/dark theme — user preference persisted via ThemeContext
+- Fully responsive layout — mobile, tablet, and desktop via useBreakpoint hook
 
 ---
 
@@ -184,7 +193,7 @@ backend/
 │   │   └── workers/
 │   │       └── priceUpdater.js     # Background worker — polling and cache writes
 │   │
-│   └── education/          # Educational content framework (in progress)
+│   └── education/          # Educational content framework (scaffold only — in progress)
 │       ├── controller.js
 │       ├── model.js
 │       ├── routes.js
@@ -198,13 +207,13 @@ backend/
 
 ### Layering Contract
 
-| Layer        | Responsibility                      | Rule                              |
-|--------------|-------------------------------------|-----------------------------------|
-| routes.js    | Path and method registration        | No logic                          |
-| controller.js| HTTP request and response handling  | No business logic                 |
-| service.js   | Business logic and orchestration    | No HTTP, no direct DB calls       |
-| model.js     | Database schema and data access     | No logic outside queries          |
-| validators.js| Input shape and constraint validation | No side effects                 |
+| Layer         | Responsibility                        | Rule                        |
+|---------------|---------------------------------------|-----------------------------|
+| routes.js     | Path and method registration          | No logic                    |
+| controller.js | HTTP request and response handling    | No business logic           |
+| service.js    | Business logic and orchestration      | No HTTP, no direct DB calls |
+| model.js      | Database schema and data access       | No logic outside queries    |
+| validators.js | Input shape and constraint validation | No side effects             |
 
 The `position` module has no routes or controller by design — it is an internal service
 consumed directly by the trade module, not exposed as a public endpoint.
@@ -218,25 +227,21 @@ frontend/
     ├── main.jsx                    # React entry point
     ├── App.jsx                     # Route definitions and layout wrapper
     │
+    ├── assets/
+    │   └── react.svg
+    │
     ├── pages/
-    │   ├── LoginPage.jsx               # Two-column layout
+    │   ├── LoginPage.jsx               # Two-column layout with branding panel
     │   ├── RegisterPage.jsx            # Two-column layout, firstName/lastName, email verify flow
-│   │   ├── VerifyPage.jsx              # Email verification — loading/success/expired/invalid states
-│   │   ├── ProfilePage.jsx             # Personal info, country dropdown, bio, change password
-    │   ├── DashboardPage.jsx           # Portfolio summary and market overview
+    │   ├── VerifyPage.jsx              # Email verification — loading/success/expired/invalid states
+    │   ├── ProfilePage.jsx             # Personal info, country dropdown, bio, change password
     │   ├── SummaryPage.jsx             # PnL summary and account snapshot
     │   ├── HoldingsPage.jsx            # Open positions with live PnL
     │   ├── HistoryPage.jsx             # Completed trade log
     │   └── QuotePage.jsx               # Ticker detail and trade entry
     │
-    ├── data/
-    │   └── countries.js                # ISO 3166-1 alpha-2 country list — profile dropdown
-    │
     ├── components/
-    │   ├── MarketStatus.jsx            # Exchange open/closed indicator
-    │   ├── PortfolioTable.jsx          # Reusable holdings and PnL table
     │   ├── TickerSearch.jsx            # Typeahead ticker lookup
-    │   ├── TradeForm.jsx               # Buy/sell quantity and order input
     │   ├── ProtectedRoute.jsx          # Auth guard for private routes
     │   │
     │   ├── layout/
@@ -251,7 +256,14 @@ frontend/
     │       └── OrderConfirmation.jsx   # Post-execution result display
     │
     ├── context/
-    │   └── AuthContext.jsx         # Global auth state — user, token, login, logout, updateUser
+    │   ├── AuthContext.jsx         # Global auth state — user, token, login, logout, updateUser
+    │   └── ThemeContext.jsx        # Theme state — light/dark mode
+    │
+    ├── hooks/
+    │   └── useBreakpoint.js        # Responsive breakpoint detection
+    │
+    ├── data/
+    │   └── countries.js            # ISO 3166-1 alpha-2 country list — profile dropdown
     │
     ├── services/                   # All API calls — one file per domain
     │   ├── axiosInstance.js        # Axios config — base URL, interceptors, token refresh
@@ -278,6 +290,8 @@ frontend/
 - `services/` layer is the only point of contact with the backend API — no fetch calls outside this folder
 - `axiosInstance.js` handles token refresh automatically via a response interceptor — pages and services never manage token state directly
 - `context/AuthContext.jsx` is the single source of truth for authentication state across the app
+- `ThemeContext.jsx` manages light/dark mode — decoupled from auth state
+- `hooks/useBreakpoint.js` centralises responsive logic — components query breakpoint state rather than writing media queries inline
 - Modal components are fully decoupled from pages — they receive props and emit callbacks only
 
 ---
@@ -285,8 +299,8 @@ frontend/
 ## Data Models
 ```js
 User:     { _id, email, passwordHash, role, firstName, lastName,
-          isVerified, verificationToken, verificationExpiry,
-          displayName, country, phone, bio, createdAt }
+            isVerified, verificationToken, verificationExpiry,
+            displayName, country, phone, bio, createdAt }
 Wallet:   { _id, userId, balance, transactions[] }
 Position: { _id, userId, ticker, quantity, avgBuyPrice, openedAt }
 Trade:    { _id, userId, ticker, action, quantity, priceAtExecution,
@@ -302,10 +316,16 @@ All backend services run in Docker Compose on a single DigitalOcean VPS:
 services:
   api            # Express server
   mongo          # MongoDB
-  mongo-express  # DB admin UI (internal only)
+  mongo-express  # DB admin UI (internal only, SSH tunnel only)
   redis          # Cache layer
-  nginx          # Reverse proxy + SSL termination
+  nginx          # Reverse proxy + SSL termination + static file server
 ```
+
+- Node server bound to `127.0.0.1` only — not reachable from internet even if firewall fails
+- Zero ports exposed publicly — all traffic routed through Nginx
+- Secrets injected at runtime via `env_file`, never baked into Docker image
+- Mongo Express accessible via SSH tunnel only
+- Cloudflare DNS with proxied A records — DDoS protection and CDN caching at the edge
 
 ---
 
@@ -318,8 +338,10 @@ services:
 - [x] Portfolio PnL service
 - [x] Frontend redesign and candlestick chart
 - [x] Account and profile management
-- [ ] VPS deployment (Docker, Nginx, SSL)
-- [ ] CI/CD pipeline (GitHub Actions)
+- [x] Dark theme and mobile responsiveness
+- [x] VPS deployment (Docker, Nginx, SSL)
+- [x] CI/CD pipeline (GitHub Actions)
+- [x] DNS, Cloudflare, domain setup
 - [ ] Educational content framework
 - [ ] Admin tools and moderation
 - [ ] Ad-based credit reward system
@@ -329,7 +351,7 @@ services:
 ## Local Development
 ```bash
 # Clone
-git clone https://github.com/yourhandle/rookiebulls.git
+git clone https://github.com/maharshidpatel/RookieBulls.git
 
 # Backend
 cd server
