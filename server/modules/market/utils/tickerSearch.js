@@ -40,6 +40,17 @@ const tickers = require(path.join(__dirname, '../data/tickers.json'))
  *  Returning hundreds of matches for a short query like 'A' would
  *  send unnecessary data over the wire.
  *
+ * Why results are sorted before slicing:
+ *  Without sorting, short queries like 'RS' fill the 10 slots with
+ *  unrelated tickers that happen to contain those letters before the
+ *  exact RS match appears. Sorting guarantees the most relevant match
+ *  is always visible in the dropdown regardless of query length.
+ *
+ * Sort priority:
+ *  1. Exact ticker match       — query is RS, ticker is RS
+ *  2. Ticker starts with query — query is RS, ticker is RSG or RSI
+ *  3. Everything else          — company name matches, partial ticker
+ *
  * Return shape matches the existing API contract:
  *  [{ ticker, companyName, exchange }]
  *  CIK is intentionally excluded from search results —
@@ -50,11 +61,32 @@ const searchTickers = (query) => {
 
   const q = query.trim().toLowerCase()
 
-  return tickers
-    .filter(entry =>
-      entry.ticker.toLowerCase().includes(q) ||
-      entry.companyName.toLowerCase().includes(q)
-    )
+  const filtered = tickers.filter(entry =>
+    entry.ticker.toLowerCase().includes(q) ||
+    entry.companyName.toLowerCase().includes(q)
+  )
+
+  // Sort by relevance before slicing to 10.
+  // Exact ticker match ranks first, ticker starts-with ranks second,
+  // all other matches (company name, partial ticker) rank third.
+  filtered.sort((a, b) => {
+    const aTicker = a.ticker.toLowerCase()
+    const bTicker = b.ticker.toLowerCase()
+
+    const aExact = aTicker === q
+    const bExact = bTicker === q
+    if (aExact && !bExact) return -1
+    if (!aExact && bExact) return 1
+
+    const aStarts = aTicker.startsWith(q)
+    const bStarts = bTicker.startsWith(q)
+    if (aStarts && !bStarts) return -1
+    if (!aStarts && bStarts) return 1
+
+    return 0
+  })
+
+  return filtered
     .slice(0, 10)
     .map(entry => ({
       ticker: entry.ticker,

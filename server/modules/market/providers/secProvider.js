@@ -33,7 +33,6 @@
  */
 
 const axios = require('axios')
-const { searchTickers } = require('../utils/tickerSearch')
 
 // SEC EDGAR requires a User-Agent header on every request.
 // Requests without it are rejected with a 403 Forbidden response.
@@ -49,26 +48,20 @@ const SEC_USER_AGENT = 'RookieBulls/1.0 dev@rookiebulls.com'
  * It is required to call the SEC EDGAR submissions API.
  *
  * How it works:
- *  Searches tickers.json in memory for an exact ticker match.
- *  tickers.json was downloaded from SEC EDGAR and committed to the repo.
- *  The search is case-insensitive and returns the first exact match.
+ *  Reads tickers.json directly and finds an exact case-insensitive
+ *  ticker match. Does not go through searchTickers() because
+ *  searchTickers() caps results at 10 — if the ticker appears beyond
+ *  position 10 in a partial match result set, it would be missed.
+ *  Direct lookup against the full list guarantees an exact match.
  *
  * Returns the CIK string (10-digit zero-padded) or null if not found.
  */
 const getCIK = (ticker) => {
-  // searchTickers() does a partial match — we need an exact ticker match.
-  // Filter the results to find the entry where ticker matches exactly.
-  const results = searchTickers(ticker)
-  const match = results.find(r => r.ticker.toUpperCase() === ticker.toUpperCase())
-
-  if (!match) return null
-
-  // searchTickers() strips CIK from its return shape (it is internal data).
-  // We need to reach back into tickers.json directly for the CIK.
-  // Require tickers.json here — Node caches it so no extra disk read.
+  // Require tickers.json directly — Node caches the result of require()
+  // so this reads from disk only once per server start regardless of
+  // how many times getCIK() is called.
   const tickers = require('../data/tickers.json')
   const entry = tickers.find(t => t.ticker.toUpperCase() === ticker.toUpperCase())
-
   return entry ? entry.cik : null
 }
 
