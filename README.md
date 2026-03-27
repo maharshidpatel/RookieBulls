@@ -23,12 +23,12 @@ Let's Encrypt SSL, Cloudflare DNS and CDN. CI/CD via GitHub Actions on push to m
 ## System Architecture
 ```
                         ┌─────────────────────────────────┐
-                        │           Cloudflare CDN         │
-                        │     DNS + DDoS Protection        │
+                        │           Cloudflare CDN        │
+                        │     DNS + DDoS Protection       │
                         └────────────┬────────────────────┘
                                      │
               ┌──────────────────────┼─────────────────────────┐
-              │                      │                          │
+              │                      │                         │
      ┌────────▼────────┐   ┌─────────▼──────────┐   ┌──────────▼────────┐
      │  React Frontend │   │  DigitalOcean VPS  │   │   GitHub Actions  │
      │  (Nginx served) │   │ Nginx Reverse Proxy│   │   CI/CD Pipeline  │
