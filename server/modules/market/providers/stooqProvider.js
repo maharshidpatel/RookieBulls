@@ -70,6 +70,24 @@
  *  Stooq provides delayed data (~15 minutes behind exchange).
  *  Platform adjusted to 9:45 AM open / 4:15 PM close to match.
  *  All public-facing pages must label data as delayed.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * SESSION COOKIE REQUIREMENT (discovered March 2026):
+ *
+ *  Stooq's historical CSV endpoint (/q/d/l/) requires a valid session
+ *  cookie. Without it, the server returns HTTP 200 with an empty body.
+ *  This affects getHistorical() only — getPrice() and getPriceBatch()
+ *  use different endpoints that still work without cookies.
+ *
+ *  Fix: Before the first historical request, visit stooq.com to obtain
+ *  a session cookie. The cookie is cached in memory for 1 hour, then
+ *  refreshed on the next request. No new dependencies — axios provides
+ *  set-cookie headers natively.
+ *
+ *  This is identical to what a browser does: visit the site, receive
+ *  a cookie, use it for subsequent downloads. No security risk to
+ *  RookieBulls — cookies are stored in server memory only, never
+ *  exposed to users, never written to disk.
  */
 
 const axios = require('axios')
@@ -114,6 +132,94 @@ const isValidRow = (row) =>
  */
 const isRateLimited = (data) =>
   typeof data === 'string' && data.includes('Exceeded')
+
+// ── Session Cookie Manager ────────────────────────────────────────────────
+//
+// Stooq's historical CSV endpoint requires a valid session cookie.
+// Without it, the server returns 200 OK with Content-Length: 0 (empty body).
+//
+// How it works:
+//   1. Visit https://stooq.com to receive Set-Cookie headers
+//   2. Extract cookie name=value pairs from the response
+//   3. Cache them in memory for COOKIE_TTL (1 hour)
+//   4. Send the cached cookies with every getHistorical() request
+//   5. On expiry, the next getHistorical() call refreshes automatically
+//
+// Why 1 hour:
+//   Session cookies typically last 15-30 minutes. 1 hour is conservative —
+//   if the session expires mid-hour, the next refresh catches it.
+//   getHistorical() is called at most once per ticker per day (cached
+//   until next market open), so the homepage visit overhead is negligible.
+//
+// Browser-like headers:
+//   The homepage request includes User-Agent and Accept headers that
+//   match a real browser. Stooq checks these to differentiate
+//   programmatic requests from browser traffic.
+
+const COOKIE_TTL = 60 * 60 * 1000  // 1 hour in milliseconds
+
+const BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Referer': 'https://stooq.com',
+}
+
+let cachedCookies   = null   // "name=value; name2=value2" string
+let cookieTimestamp  = 0     // Date.now() when cookies were fetched
+let cookieRefreshes = 0     // Counter for logging
+
+/**
+ * getSessionCookies()
+ *
+ * Returns a cached cookie string, or fetches a fresh one from stooq.com.
+ * The cookie string is formatted for the axios Cookie header:
+ *   "cookie1=value1; cookie2=value2"
+ *
+ * Set-Cookie headers from the server look like:
+ *   "session_id=abc123; Path=/; HttpOnly; Secure"
+ * We extract only the "session_id=abc123" part (before the first ;).
+ */
+const getSessionCookies = async () => {
+  const now = Date.now()
+
+  // Return cached cookies if still fresh
+  if (cachedCookies && (now - cookieTimestamp) < COOKIE_TTL) {
+    return cachedCookies
+  }
+
+  // Visit stooq.com homepage to get session cookies
+  const response = await axios.get('https://stooq.com', {
+    timeout: 10000,
+    headers: {
+      'User-Agent': BROWSER_HEADERS['User-Agent'],
+      'Accept':     BROWSER_HEADERS['Accept'],
+    },
+    // Do not follow redirects automatically — we need the Set-Cookie
+    // headers from the initial response, not the final redirect target.
+    // Stooq homepage does not redirect, but this is defensive.
+    maxRedirects: 5,
+  })
+
+  // Extract Set-Cookie headers
+  // response.headers['set-cookie'] is an array of cookie strings like:
+  //   ["session_id=abc123; Path=/; HttpOnly", "lang=en; Path=/"]
+  // We take the name=value part (before ;) from each and join them.
+  const setCookies = response.headers['set-cookie']
+
+  if (setCookies && setCookies.length) {
+    cachedCookies  = setCookies.map(c => c.split(';')[0]).join('; ')
+    cookieTimestamp = now
+    cookieRefreshes++
+    console.log(`Stooq session cookies refreshed (refresh #${cookieRefreshes})`)
+  } else {
+    // If no cookies returned, log a warning but do not throw.
+    // The request may still work without cookies on some endpoints.
+    console.warn('Stooq homepage returned no Set-Cookie headers')
+  }
+
+  return cachedCookies
+}
 
 // ── Request counters ──────────────────────────────────────────────────────
 //
@@ -210,6 +316,11 @@ const getPrice = async (ticker) => {
 // Cached until next market open (9:45 AM ET with 15min delay applied).
 // At most 1 call per ticker per trading day.
 //
+// Session cookie required (March 2026):
+//   The historical endpoint returns an empty body without a valid session.
+//   getSessionCookies() provides the cookie from a cached homepage visit.
+//   Browser-like headers (User-Agent, Accept, Referer) are also sent.
+//
 // Chart ranges served from this single cached dataset:
 //   5D → 7 calendar days, 1M → 30, 3M → 90, 6M → 180,
 //   1Y → 365, 2Y → 730, 5Y → 1825, All → entire array
@@ -230,7 +341,47 @@ const getHistorical = async (ticker) => {
     counters.history++
     logCounters()
 
-    const response = await axios.get(url, { timeout: 20000 })
+    // Obtain session cookies (cached for 1 hour, refreshed automatically)
+    const cookies = await getSessionCookies()
+
+    // Send request with session cookies and browser-like headers.
+    // Without the Cookie header, Stooq returns 200 with empty body.
+    const response = await axios.get(url, {
+      timeout: 20000,
+      headers: {
+        ...BROWSER_HEADERS,
+        ...(cookies ? { 'Cookie': cookies } : {}),
+      },
+    })
+
+    // Empty body check — Stooq returns Content-Length: 0 when session is invalid.
+    // If this happens despite having cookies, force a cookie refresh and retry once.
+    if (!response.data || (typeof response.data === 'string' && response.data.trim() === '')) {
+      console.warn(`Stooq returned empty body for ${ticker} — refreshing session and retrying`)
+
+      // Force cookie refresh by clearing the cache
+      cachedCookies  = null
+      cookieTimestamp = 0
+      const freshCookies = await getSessionCookies()
+
+      const retryResponse = await axios.get(url, {
+        timeout: 20000,
+        headers: {
+          ...BROWSER_HEADERS,
+          ...(freshCookies ? { 'Cookie': freshCookies } : {}),
+        },
+      })
+
+      // If still empty after retry, the endpoint is down
+      if (!retryResponse.data || (typeof retryResponse.data === 'string' && retryResponse.data.trim() === '')) {
+        const error = new Error(`Stooq historical endpoint returned empty data for ${ticker} after cookie refresh`)
+        error.statusCode = 503
+        throw error
+      }
+
+      // Use the retry response for parsing below
+      response.data = retryResponse.data
+    }
 
     if (isRateLimited(response.data)) {
       const error = new Error('Stooq daily request limit reached. Try again at next market open.')
